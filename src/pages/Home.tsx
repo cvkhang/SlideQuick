@@ -5,15 +5,10 @@ import { Plus, Trash2, Edit, Presentation } from 'lucide-react';
 import '../styles/Home.css';
 
 export default function Home() {
-  const { projects, createProject, deleteProject, setCurrentProject, loading, logout } = useApp();
+  const { projects, createProject, deleteProject, setCurrentProject, loading } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [projectName, setProjectName] = useState('');
   const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
 
   const handleCreateProject = async () => {
     if (projectName.trim()) {
@@ -44,9 +39,6 @@ export default function Home() {
             SlideQuick
           </h1>
           <p className="tagline">美しいプレゼンテーションを数分で作成</p>
-          <div style={{ position: 'absolute', right: 20, top: 18 }}>
-            <button className="btn-secondary" onClick={handleLogout}>ログアウト</button>
-          </div>
         </div>
       </header>
 

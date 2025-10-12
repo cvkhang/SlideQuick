@@ -9,7 +9,7 @@ const {
   createProject,
   updateProject,
   deleteProject,
-} = require('./database.cjs');
+} = require('./database');
 
 const app = express();
 const PORT = 3001;

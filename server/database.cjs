@@ -1,39 +1,22 @@
-// server/database.cjs
 // Use better-sqlite3 from parent node_modules
 const Database = require('../node_modules/better-sqlite3');
 const path = require('path');
-const crypto = require('crypto');
 
 // データベースファイルのパス
 const dbPath = path.join(__dirname, 'slidequick.db');
 const db = new Database(dbPath);
 
-// ユーザーのパスワードハッシュ作成
-function hashPassword(password, salt) {
-  // scryptSync -> 64 bytes derived key
-  const derived = crypto.scryptSync(password, salt, 64);
-  return derived.toString('hex');
-}
-
+// テーブルを初期化
 function initializeDatabase() {
-  // create projects table (owner_id included)
+  // プロジェクトテーブルを作成
   db.exec(`
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      owner_id TEXT NOT NULL
+      updated_at TEXT NOT NULL
     )
   `);
-
-  // If projects table existed before without owner_id, add column
-  const cols = db.prepare("PRAGMA table_info('projects')").all();
-  const hasOwner = cols.some(c => c.name === 'owner_id');
-  if (!hasOwner) {
-    // add column (SQLite doesn't support IF NOT EXISTS for ADD COLUMN)
-    db.exec("ALTER TABLE projects ADD COLUMN owner_id TEXT");
-  }
 
   // スライドテーブルを作成
   db.exec(`
@@ -50,26 +33,16 @@ function initializeDatabase() {
     )
   `);
 
-  // ユーザーテーブルを作成
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      username TEXT UNIQUE NOT NULL,
-      email TEXT UNIQUE,
-      password_hash TEXT NOT NULL,
-      salt TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    )
-  `);
-
   console.log('✅ データベースが初期化されました');
 }
 
-// プロジェクトの取得（スライド含む） -- filter by ownerId
-function getAllProjects(ownerId) {
-  const projects = db.prepare('SELECT * FROM projects WHERE owner_id = ? ORDER BY updated_at DESC').all(ownerId || '');
+// プロジェクトの取得（スライド含む）
+function getAllProjects() {
+  const projects = db.prepare('SELECT * FROM projects ORDER BY updated_at DESC').all();
+  
   return projects.map(project => {
     const slides = db.prepare('SELECT * FROM slides WHERE project_id = ? ORDER BY slide_order').all(project.id);
+    
     return {
       id: project.id,
       name: project.name,
@@ -87,11 +60,14 @@ function getAllProjects(ownerId) {
   });
 }
 
-// プロジェクトをIDで取得 -- only if owner matches
-function getProjectById(id, ownerId) {
-  const project = db.prepare('SELECT * FROM projects WHERE id = ? AND owner_id = ?').get(id, ownerId);
+// プロジェクトをIDで取得
+function getProjectById(id) {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+  
   if (!project) return null;
+  
   const slides = db.prepare('SELECT * FROM slides WHERE project_id = ? ORDER BY slide_order').all(id);
+  
   return {
     id: project.id,
     name: project.name,
@@ -108,21 +84,21 @@ function getProjectById(id, ownerId) {
   };
 }
 
-// プロジェクトを作成 (expects ownerId)
-function createProject(project, ownerId) {
+// プロジェクトを作成
+function createProject(project) {
   const insertProject = db.prepare(`
-    INSERT INTO projects (id, name, created_at, updated_at, owner_id)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO projects (id, name, created_at, updated_at)
+    VALUES (?, ?, ?, ?)
   `);
-
+  
   const insertSlide = db.prepare(`
     INSERT INTO slides (id, project_id, title, content, template, background_color, text_color, slide_order)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
-
+  
   const transaction = db.transaction(() => {
-    insertProject.run(project.id, project.name, project.createdAt, project.updatedAt, ownerId);
-
+    insertProject.run(project.id, project.name, project.createdAt, project.updatedAt);
+    
     project.slides.forEach((slide, index) => {
       insertSlide.run(
         slide.id,
@@ -136,34 +112,30 @@ function createProject(project, ownerId) {
       );
     });
   });
-
+  
   transaction();
-  return getProjectById(project.id, ownerId);
+  return getProjectById(project.id);
 }
 
-// プロジェクトを更新 (only if owner matches)
-function updateProject(project, ownerId) {
+// プロジェクトを更新
+function updateProject(project) {
   const updateProjectStmt = db.prepare(`
     UPDATE projects 
     SET name = ?, updated_at = ?
-    WHERE id = ? AND owner_id = ?
+    WHERE id = ?
   `);
-
+  
   const deleteSlides = db.prepare('DELETE FROM slides WHERE project_id = ?');
-
+  
   const insertSlide = db.prepare(`
     INSERT INTO slides (id, project_id, title, content, template, background_color, text_color, slide_order)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
-
+  
   const transaction = db.transaction(() => {
-    const info = updateProjectStmt.run(project.name, project.updatedAt, project.id, ownerId);
-    if (info.changes === 0) {
-      // project not found or not owned by user
-      throw new Error('not_found_or_not_owner');
-    }
+    updateProjectStmt.run(project.name, project.updatedAt, project.id);
     deleteSlides.run(project.id);
-
+    
     project.slides.forEach((slide, index) => {
       insertSlide.run(
         slide.id,
@@ -177,70 +149,22 @@ function updateProject(project, ownerId) {
       );
     });
   });
-
-  try {
-    transaction();
-  } catch (err) {
-    if (err.message === 'not_found_or_not_owner') return null;
-    throw err;
-  }
-
-  return getProjectById(project.id, ownerId);
+  
+  transaction();
+  return getProjectById(project.id);
 }
 
-// プロジェクトを削除 (only if owner matches). return true if deleted.
-function deleteProject(id, ownerId) {
+// プロジェクトを削除
+function deleteProject(id) {
   const deleteSlides = db.prepare('DELETE FROM slides WHERE project_id = ?');
-  const deleteProjectStmt = db.prepare('DELETE FROM projects WHERE id = ? AND owner_id = ?');
-
+  const deleteProjectStmt = db.prepare('DELETE FROM projects WHERE id = ?');
+  
   const transaction = db.transaction(() => {
     deleteSlides.run(id);
-    const info = deleteProjectStmt.run(id, ownerId);
-    return info.changes;
+    deleteProjectStmt.run(id);
   });
-
-  const changes = transaction();
-  return !!changes;
-}
-
-/* -----------------------
-   ユーザー関連の関数
-   ----------------------- */
-
-function getUserByUsername(username) {
-  const user = db.prepare('SELECT id, username, email, password_hash, salt, created_at FROM users WHERE username = ?').get(username);
-  return user || null;
-}
-
-function getUserById(id) {
-  const user = db.prepare('SELECT id, username, email, created_at FROM users WHERE id = ?').get(id);
-  return user || null;
-}
-
-function createUser(user) {
-  const insert = db.prepare(`
-    INSERT INTO users (id, username, email, password_hash, salt, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-
-  insert.run(user.id, user.username, user.email || null, user.password_hash, user.salt, user.created_at);
-  return getUserById(user.id);
-}
-
-function verifyUser(username, password) {
-  const row = db.prepare('SELECT id, username, email, password_hash, salt, created_at FROM users WHERE username = ?').get(username);
-  if (!row) return null;
-
-  const derived = hashPassword(password, row.salt);
-  const valid = crypto.timingSafeEqual(Buffer.from(derived, 'hex'), Buffer.from(row.password_hash, 'hex'));
-  if (!valid) return null;
-
-  return {
-    id: row.id,
-    username: row.username,
-    email: row.email,
-    createdAt: row.created_at
-  };
+  
+  transaction();
 }
 
 module.exports = {
@@ -250,11 +174,5 @@ module.exports = {
   createProject,
   updateProject,
   deleteProject,
-  // users
-  getUserByUsername,
-  getUserById,
-  createUser,
-  verifyUser,
-  // helper for password hashing to use in server if needed
-  _hashPassword: hashPassword,
 };
+
