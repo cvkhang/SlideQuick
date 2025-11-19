@@ -6,8 +6,9 @@ import React, {
   ReactNode,
 } from "react";
 import { Project, Slide, User } from "../../types";
+import { generateLayoutElements } from "../utils/layoutUtils";
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
 interface AppContextType {
   projects: Project[];
@@ -15,7 +16,13 @@ interface AppContextType {
   currentSlideIndex: number;
   loading: boolean;
   currentUser: User | null;
-  createProject: (name: string) => Promise<void>;
+  createProject: (
+    name: string,
+    description?: string,
+    lessonName?: string,
+    basicInfo?: string,
+    initialStyle?: { backgroundColor: string; textColor: string; accentColor: string; fontFamily: string; }
+  ) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   setCurrentProject: (project: Project | null) => void;
   updateProject: (project: Project) => Promise<void>;
@@ -63,7 +70,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   // helper to build headers (allow token override for immediate use after login/register)
   const getHeaders = (overrideToken?: string) => {
-    const t = overrideToken ?? token;
+    // Fallback to localStorage if state token not yet set (e.g., during initial load)
+    const t = overrideToken ?? token ?? localStorage.getItem("sq_token");
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -150,13 +158,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           localStorage.removeItem("sq_user");
         }
       }
+      // Pass the token directly to avoid race condition where state hasn't updated yet
+      refreshProjects(t);
     } else {
       // ensure no stale user remains
       localStorage.removeItem("sq_user");
+      // No token means guest mode - just set loading to false
+      setLoading(false);
     }
-
-    // load projects (will clear auth if token invalid / 401)
-    refreshProjects();
   }, []);
 
   // 現在のプロジェクトを更新
@@ -171,19 +180,59 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   }, [projects]);
 
-  const createProject = async (name: string) => {
+  const createProject = async (
+    name: string,
+    description?: string,
+    lessonName?: string,
+    basicInfo?: string,
+    initialStyle?: { backgroundColor: string; textColor: string; accentColor: string; fontFamily: string; }
+  ) => {
     try {
       const newProject: Project = {
         id: crypto.randomUUID(),
         name,
+        description,
+        lessonName,
+        basicInfo,
         slides: [
           {
             id: crypto.randomUUID(),
             title: "ようこそ",
             content: "クリックしてスライドを編集",
             template: "title",
-            backgroundColor: "#ffffff",
-            textColor: "#000000",
+            backgroundColor: initialStyle?.backgroundColor || "#ffffff",
+            textColor: initialStyle?.textColor || "#000000",
+            elements: [
+              {
+                id: crypto.randomUUID(),
+                type: 'text',
+                role: 'title',
+                content: 'プレゼンテーションのタイトル',
+                x: 80, y: 180, width: 800, height: 120,
+                style: {
+                  fontSize: 64,
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  alignItems: 'center',
+                  color: initialStyle?.textColor || '#1e293b',
+                  fontFamily: initialStyle?.fontFamily
+                }
+              },
+              {
+                id: crypto.randomUUID(),
+                type: 'text',
+                role: 'subtitle',
+                content: 'サブタイトルまたは作成者',
+                x: 180, y: 310, width: 600, height: 60,
+                style: {
+                  fontSize: 28,
+                  textAlign: 'center',
+                  alignItems: 'center',
+                  color: initialStyle?.accentColor || '#64748b',
+                  fontFamily: initialStyle?.fontFamily
+                }
+              }
+            ]
           },
         ],
         createdAt: new Date(),
@@ -259,6 +308,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     const project = projects.find((p) => p.id === projectId) || (currentProject?.id === projectId ? currentProject : null);
     if (!project) return;
 
+    // Use shared utility to generate elements
+    const elements = generateLayoutElements(template);
+
     const newSlide: Slide = {
       id: crypto.randomUUID(),
       title: "新しいスライド",
@@ -266,6 +318,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       template,
       backgroundColor: "#ffffff",
       textColor: "#000000",
+      elements: elements,
     };
 
     const updatedProject = {

@@ -1,22 +1,33 @@
 {
-  "name": "server",
-  "version": "1.0.0",
-  "description": "このサーバーは親ディレクトリの`node_modules`を使用します。\r サーバー専用の`npm install`は不要です。",
-  "main": "server.cjs",
+  "name": "slidequick-server",
+  "version": "2.0.0",
+  "description": "SlideQuick backend server - Refactored with MVC architecture",
+  "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon server.cjs",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": [
+    "slidequick",
+    "api",
+    "express",
+    "sqlite"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "better-sqlite3": "^12.5.0",
     "body-parser": "^2.2.1",
     "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
-    "nodemon": "^3.1.11"
+    "nodemailer": "^7.0.11",
+    "nodemon": "^3.1.11",
+    "ws": "^8.18.3",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.27"
   }
 }
