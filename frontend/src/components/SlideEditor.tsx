@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Settings, MessageSquare, Image as ImageIcon, AlignLeft, AlignCenter, AlignRight, AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, Type, Square, Circle, Triangle, MousePointer2, Undo2, Redo2, Copy } from "lucide-react";
 import { useApp } from "../context/AppContext";
-import { Slide, SlideElement } from "../../types";
+import { Slide, SlideElement } from "../types";
 import "../styles/SlideEditor.css";
 import { DraggableElement } from "./DraggableElement";
 // generateLayoutElements is dynamically imported

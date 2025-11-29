@@ -1,4 +1,4 @@
-import { SlideElement } from "../../types";
+import { SlideElement } from "../types";
 
 export type LayoutSpec = {
   type: 'text' | 'image' | 'shape';

@@ -5,7 +5,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
-import { Project, Slide, User } from "../../types";
+import { Project, Slide, User } from "../types";
 import { generateLayoutElements } from "../utils/layoutUtils";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";

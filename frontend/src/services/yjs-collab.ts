@@ -1,7 +1,7 @@
 // Y.js collaboration service for real-time sync
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
-import { Project, Slide, SlideElement } from '../../types';
+import { Project, Slide, SlideElement } from '../types';
 
 // WebSocket server URL
 // @ts-ignore - Vite specific
@@ -23,7 +23,7 @@ export function connectToRoom(
 ): () => void {
   // Check if already connected
   if (activeConnections.has(roomName)) {
-    console.log(`Already connected to room: ${roomName}`);
+
     return () => disconnectFromRoom(roomName);
   }
 
@@ -40,7 +40,7 @@ export function connectToRoom(
 
   // Connection status handlers
   provider.on('status', (event: { status: string }) => {
-    console.log(`Y.js connection status: ${event.status}`);
+
     if (event.status === 'connected') {
       onConnectionStatus?.('connected');
     } else if (event.status === 'disconnected') {
@@ -55,7 +55,7 @@ export function connectToRoom(
   });
 
   provider.on('sync', (isSynced: boolean) => {
-    console.log(`Y.js sync status: ${isSynced ? 'synced' : 'syncing'}`);
+
     if (isSynced) {
       // Initial sync complete, get project data
       try {
@@ -101,7 +101,7 @@ export function disconnectFromRoom(roomName: string): void {
     connection.provider.disconnect();
     connection.doc.destroy();
     activeConnections.delete(roomName);
-    console.log(`Disconnected from room: ${roomName}`);
+
   }
 }
 
@@ -142,7 +142,7 @@ export function initializeProjectInRoom(roomName: string, project: Project): voi
     });
   });
 
-  console.log(`Initialized project in room: ${roomName}`);
+
 }
 
 /**

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Home, Plus, Trash2, Play, Download, ChevronLeft, ChevronRight, Share2, Copy, X, Lock, Eye, Edit3 } from 'lucide-react';
-import { Slide } from '../../types';
+import { Slide } from '../types';
 import SlideEditor from '../components/SlideEditor';
 import { exportToPDF } from '../utils/pdfExport';
 import {
