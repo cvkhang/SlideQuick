@@ -13,7 +13,7 @@ export default function Presentation() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { projects } = useApp();
+  const { projects, sharedProjects } = useApp();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -22,35 +22,53 @@ export default function Presentation() {
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
-    const proj = projects.find(p => p.id === projectId);
+    const proj = projects.find(p => p.id === projectId) || sharedProjects.find(p => p.id === projectId);
     const room = searchParams.get('room');
 
     if (proj) {
       setProject(proj);
       setLoading(false);
-    } else if (room) {
-      // Try to fetch shared session via Y.js
-      setLoading(true);
-      connectToRoomOnce(room)
-        .then(({ project: sharedProject }) => {
-          if (sharedProject) {
-            setProject(sharedProject);
-          } else {
-            setError('共有プレゼンテーションが見つかりません。');
-          }
+    } else if (projectId) {
+      // Try fetching as a single project (covers shared projects not yet in list)
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      fetch(`${API_URL}/projects/${projectId}`)
+        .then(res => {
+          if (!res.ok) throw new Error('Failed');
+          return res.json();
         })
-        .catch((err) => {
-          console.error('Failed to load shared presentation:', err);
-          setError('共有プレゼンテーションの読み込みに失敗しました。');
-        })
-        .finally(() => {
+        .then(data => {
+          setProject({
+            ...data,
+            createdAt: new Date(data.createdAt),
+            updatedAt: new Date(data.updatedAt)
+          });
           setLoading(false);
+        })
+        .catch(() => {
+          // Fallback to Y.js room if available
+          if (room) {
+            connectToRoomOnce(room)
+              .then(({ project: sharedProject }) => {
+                if (sharedProject) setProject(sharedProject);
+                else setError('共有プレゼンテーションが見つかりません。');
+              })
+              .catch(() => setError('共有プレゼンテーションの読み込みに失敗しました。'))
+              .finally(() => setLoading(false));
+          } else {
+            // Try public endpoint as last resort (for view-only guests)
+            fetch(`${API_URL}/projects/public/${projectId}`)
+              .then(res => res.ok ? res.json() : Promise.reject())
+              .then(data => {
+                setProject({ ...data, createdAt: new Date(data.createdAt), updatedAt: new Date(data.updatedAt) });
+                setLoading(false);
+              })
+              .catch(() => {
+                navigate('/');
+              });
+          }
         });
-    } else {
-      // Not found locally and no share link
-      navigate('/');
     }
-  }, [projectId, projects, searchParams, navigate]);
+  }, [projectId, projects, sharedProjects, searchParams, navigate]);
 
   // Handle Window Resize for Scaling
   useEffect(() => {

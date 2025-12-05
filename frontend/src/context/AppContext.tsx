@@ -12,6 +12,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
 interface AppContextType {
   projects: Project[];
+  sharedProjects: Project[];
   currentProject: Project | null;
   currentSlideIndex: number;
   loading: boolean;
@@ -36,6 +37,8 @@ interface AppContextType {
   duplicateSlide: (projectId: string, slideId: string) => Promise<void>;
   setCurrentSlideIndex: (index: number) => void;
   refreshProjects: () => Promise<void>;
+  fetchSharedProjects: () => Promise<void>;
+  markProjectAccessed: (projectId: string) => Promise<void>;
   // auth
   login: (username: string, password: string) => Promise<boolean>;
   register: (
@@ -62,6 +65,7 @@ interface AppProviderProps {
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [sharedProjects, setSharedProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -138,6 +142,49 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       // サーバーが起動していない可能性
     } finally {
       if (!silent) setLoading(false);
+    }
+  };
+
+  const fetchSharedProjects = async () => {
+    try {
+      const currentToken = token ?? localStorage.getItem("sq_token");
+      if (!currentToken) return;
+
+      console.log('Fetching shared projects...');
+      const response = await fetch(`${API_URL}/projects/shared`, {
+        headers: getHeaders(),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Shared projects fetched:', data);
+        setSharedProjects(data.map((p: any) => ({
+          ...p,
+          createdAt: new Date(p.createdAt),
+          updatedAt: new Date(p.updatedAt),
+          accessedAt: new Date(p.accessedAt),
+        })));
+      } else {
+        console.error('Failed to fetch shared projects:', response.status);
+      }
+    } catch (error) {
+      console.error("Error fetching shared projects:", error);
+    }
+  };
+
+  const markProjectAccessed = async (projectId: string) => {
+    try {
+      const currentToken = token ?? localStorage.getItem("sq_token");
+      if (!currentToken) return;
+
+      console.log('Marking project accessed:', projectId);
+      // Optimistically assume success to avoid blocking
+      await fetch(`${API_URL}/projects/${projectId}/access`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+      console.log('Successfully marked project accessed');
+    } catch (error) {
+      console.error("Error marking project accessed:", error);
     }
   };
 
@@ -466,6 +513,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     <AppContext.Provider
       value={{
         projects,
+        sharedProjects,
         currentProject,
         currentSlideIndex,
         loading,
@@ -480,6 +528,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         duplicateSlide,
         setCurrentSlideIndex,
         refreshProjects,
+        fetchSharedProjects,
+        markProjectAccessed,
         login,
         register,
         logout,

@@ -23,7 +23,7 @@ interface ProjectWithShareMode extends Project {
 export default function Viewer() {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const { currentUser, setCurrentSlideIndex, currentSlideIndex } = useApp();
+  const { currentUser, setCurrentSlideIndex, currentSlideIndex, markProjectAccessed } = useApp();
 
   const [project, setProject] = useState<ProjectWithShareMode | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,6 +74,11 @@ export default function Viewer() {
           createdAt: new Date(data.createdAt),
           updatedAt: new Date(data.updatedAt),
         });
+
+        // Track access for "Shared with me" history
+        if (currentUser && data.ownerId !== currentUser.id && projectId) {
+          markProjectAccessed(projectId);
+        }
 
       } catch (err) {
         console.error('Error fetching project:', err);

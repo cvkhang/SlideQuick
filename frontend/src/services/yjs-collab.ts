@@ -563,7 +563,8 @@ export function updateProjectInRoom(roomName: string, project: Project): void {
     // Clear and rebuild all slides
     ySlides.delete(0, ySlides.length);
 
-    project.slides.forEach((slide) => {
+    const slides = project.slides || [];
+    slides.forEach((slide) => {
       const ySlide = createYSlide(slide);
       ySlides!.push([ySlide]);
     });

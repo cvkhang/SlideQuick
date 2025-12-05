@@ -128,7 +128,10 @@ export default function SlideEditor({
 
     // Save previous state to undo stack
     const previousElements = JSON.parse(lastSavedJson.current) as SlideElement[];
-    setUndoStack(prev => [...prev.slice(-(MAX_HISTORY - 1)), previousElements]);
+    setUndoStack(prev => {
+      console.log('SlideEditor: Adding to undo stack. New size:', prev.length + 1);
+      return [...prev.slice(-(MAX_HISTORY - 1)), previousElements];
+    });
     setRedoStack([]); // Clear redo on new action
     lastSavedJson.current = currentJson;
   }, [slide.elements]);
@@ -137,6 +140,7 @@ export default function SlideEditor({
   const canRedo = redoStack.length > 0;
 
   const handleUndo = useCallback(() => {
+    console.log('SlideEditor: handleUndo called. Stack size:', undoStack.length, 'ReadOnly:', readOnly);
     if (undoStack.length === 0 || readOnly) return;
 
     isUndoRedoAction.current = true;
@@ -305,6 +309,7 @@ export default function SlideEditor({
   const SNAP_THRESHOLD = 8; // px - slightly larger for better UX
 
   const handleDragStateChange = useCallback((dragging: boolean, elementId: string) => {
+    console.log('SlideEditor: handleDragStateChange', { dragging, elementId });
     setIsDraggingElement(dragging);
 
     if (!dragging) {
@@ -315,7 +320,8 @@ export default function SlideEditor({
 
     // Calculate guide positions based on other elements
     const currentElements = slide.elements || [];
-    const draggedElement = currentElements.find(el => el.id === elementId);
+    // Fallback: If updated state hasn't propagated, assume the dragged element is the valid one passed by ID
+    const draggedElement = currentElements.find(el => el.id === elementId) || { id: elementId };
     if (!draggedElement) return;
 
     const xGuides: number[] = [];

@@ -1,16 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Plus, Calendar, User, Presentation } from 'lucide-react';
-import { Layout } from '../components/ui/Layout';
+import { Plus, Calendar, User, Presentation, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
+import { Layout } from '../components/ui/Layout';
 import TemplateLibrary from '../components/TemplateLibrary/TemplateLibrary';
 import { Template } from '../types';
 
 export default function Home() {
-  const { projects, createProject, deleteProject, setCurrentProject, loading } = useApp();
+  const { projects, sharedProjects, createProject, deleteProject, setCurrentProject, loading, fetchSharedProjects } = useApp();
+  const [activeTab, setActiveTab] = useState<'my' | 'shared'>('my');
+
+  // Fetch shared projects when tab changes
+  useEffect(() => {
+    if (activeTab === 'shared') {
+      console.log('Home: Switching to shared tab, fetching...');
+      fetchSharedProjects();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    console.log('Home: sharedProjects updated:', sharedProjects);
+  }, [sharedProjects]);
   const [showModal, setShowModal] = useState(false);
   const [projectName, setProjectName] = useState('');
   const [description, setDescription] = useState('');
@@ -55,12 +68,16 @@ export default function Home() {
     }
   };
 
+  // Determine which list to show
+  const currentList = activeTab === 'my' ? projects : sharedProjects;
+  const isListEmpty = currentList.length === 0;
+
   return (
     <Layout>
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold font-display text-slate-900">ダッシュボード</h1>
-          <p className="text-slate-500 mt-1">プレゼンテーションとテンプレートを管理</p>
+          <p className="text-slate-500 mt-1">プレゼンテーションを管理・作成します</p>
         </div>
         <Button
           onClick={() => setShowModal(true)}
@@ -71,26 +88,50 @@ export default function Home() {
         </Button>
       </div>
 
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200 mb-8">
+        <button
+          className={`px-6 py-3 font-medium text-sm transition-colors relative ${activeTab === 'my' ? 'text-primary-600' : 'text-slate-500 hover:text-slate-700'}`}
+          onClick={() => setActiveTab('my')}
+        >
+          マイプロジェクト
+          {activeTab === 'my' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 rounded-t-full" />}
+        </button>
+        <button
+          className={`px-6 py-3 font-medium text-sm transition-colors relative ${activeTab === 'shared' ? 'text-primary-600' : 'text-slate-500 hover:text-slate-700'}`}
+          onClick={() => setActiveTab('shared')}
+        >
+          共有されたプロジェクト
+          {activeTab === 'shared' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 rounded-t-full" />}
+        </button>
+      </div>
+
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
-      ) : projects.length === 0 ? (
+      ) : isListEmpty ? (
         <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-300">
           <div className="bg-primary-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
             <Presentation className="w-8 h-8 text-primary-600" />
           </div>
-          <h3 className="text-lg font-semibold text-slate-900">プロジェクトがありません</h3>
+          <h3 className="text-lg font-semibold text-slate-900">
+            {activeTab === 'my' ? 'プロジェクトがありません' : '共有されたプロジェクトはありません'}
+          </h3>
           <p className="text-slate-500 max-w-sm mx-auto mt-2 mb-6">
-            SlideQuickを始めるには、最初のプレゼンテーションを作成してください。
+            {activeTab === 'my'
+              ? 'SlideQuickを始めるには、最初のプレゼンテーションを作成してください。'
+              : '他のユーザーから共有されたプロジェクトがここに表示されます。'}
           </p>
-          <Button onClick={() => setShowModal(true)}>
-            プロジェクト作成
-          </Button>
+          {activeTab === 'my' && (
+            <Button onClick={() => setShowModal(true)}>
+              プロジェクト作成
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map(project => (
+          {currentList.map(project => (
             <Card
               key={project.id}
               variant="glass"
@@ -103,16 +144,19 @@ export default function Home() {
                   <Presentation className="w-12 h-12" />
                 </div>
                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    className="p-1.5 bg-white/90 backdrop-blur rounded-lg text-slate-600 hover:text-red-600 shadow-sm"
-                    onClick={(e) => handleDeleteProject(e, project.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {/* Only show delete for my projects */}
+                  {activeTab === 'my' && (
+                    <button
+                      className="p-1.5 bg-white/90 backdrop-blur rounded-lg text-slate-600 hover:text-red-600 shadow-sm"
+                      onClick={(e) => handleDeleteProject(e, project.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
                 <div className="absolute bottom-3 left-3">
                   <span className="px-2 py-1 bg-white/90 backdrop-blur rounded-md text-xs font-medium text-slate-600 shadow-sm">
-                    {project.slides.length} スライド
+                    {project.slides?.length || 0} スライド
                   </span>
                 </div>
               </div>
@@ -210,26 +254,4 @@ export default function Home() {
   );
 }
 
-// Helper icon
-function Trash2({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="M3 6h18" />
-      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-      <line x1="10" x2="10" y1="11" y2="17" />
-      <line x1="14" x2="14" y1="11" y2="17" />
-    </svg>
-  );
-}
+

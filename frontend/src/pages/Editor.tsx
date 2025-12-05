@@ -26,7 +26,7 @@ export default function Editor() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { projects, currentProject, currentSlideIndex, setCurrentProject, setCurrentSlideIndex, addSlide, deleteSlide, duplicateSlide, currentUser, loading: authLoading } = useApp();
+  const { projects, currentProject, currentSlideIndex, setCurrentProject, setCurrentSlideIndex, addSlide, deleteSlide, duplicateSlide, currentUser, loading: authLoading, markProjectAccessed } = useApp();
   const [showTemplates, setShowTemplates] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; slideId: string } | null>(null);
 
@@ -105,7 +105,13 @@ export default function Editor() {
             updatedAt: new Date(data.updatedAt),
           });
           projectLoadedRef.current = true;
+          projectLoadedRef.current = true;
           setAccessDenied(null);
+
+          // Track access for "Shared with me" history
+          if (currentUser && data.ownerId !== currentUser.id && projectId) {
+            markProjectAccessed(projectId);
+          }
 
         } catch (err) {
           console.error('Error checking access:', err);
@@ -353,7 +359,8 @@ export default function Editor() {
     );
   }
 
-  const currentSlide = currentProject.slides[currentSlideIndex];
+  const slides = currentProject.slides || [];
+  const currentSlide = slides[currentSlideIndex];
 
   if (!currentSlide) {
     return <div className="p-8 text-center text-slate-500">スライドを読み込み中...</div>;

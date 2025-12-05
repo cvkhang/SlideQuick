@@ -13,6 +13,13 @@ router.use(requireAuth);
 // GET /api/projects - Get all projects
 router.get('/', projectController.getAllProjects);
 
+// GET /api/projects/shared - Get projects shared with me
+// Must be before /:id to avoid collision
+router.get('/shared', projectController.getSharedProjects);
+
+// POST /api/projects/:id/access - Track access to shared project
+router.post('/:id/access', projectController.trackProjectAccess);
+
 // GET /api/projects/:id - Get project by ID
 router.get('/:id', projectController.getProjectById);
 

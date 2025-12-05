@@ -377,6 +377,58 @@ function updateShareMode(projectId, ownerId, shareMode) {
   return result.changes > 0;
 }
 
+/**
+ * Track user access to a project (Shared with me)
+ * @param {string} userId - User ID
+ * @param {string} projectId - Project ID
+ */
+function trackProjectAccess(userId, projectId) {
+  // Don't track if user is the owner
+  const project = db.prepare('SELECT owner_id FROM projects WHERE id = ?').get(projectId);
+  if (project && project.owner_id === userId) return;
+
+  const stmt = db.prepare(`
+    INSERT INTO shared_projects (user_id, project_id, accessed_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(user_id, project_id) DO UPDATE SET accessed_at = excluded.accessed_at
+  `);
+
+  stmt.run(userId, projectId, new Date().toISOString());
+}
+
+/**
+ * Get projects shared with the user
+ * @param {string} userId - User ID
+ * @returns {Array} List of shared projects
+ */
+function getSharedProjects(userId) {
+  const projects = db.prepare(`
+    SELECT p.*, u.username as owner_name, sp.accessed_at as shared_accessed_at
+    FROM shared_projects sp
+    JOIN projects p ON sp.project_id = p.id
+    LEFT JOIN users u ON p.owner_id = u.id
+    WHERE sp.user_id = ? AND p.is_deleted = 0
+    ORDER BY sp.accessed_at DESC
+  `).all(userId);
+
+  return projects.map(project => {
+    // We only fetch basic info, not full slides for the dashboard list
+    return {
+      id: project.id,
+      name: project.name,
+      ownerName: project.owner_name,
+      ownerId: project.owner_id,
+      description: project.description,
+      lessonName: project.lesson_name,
+      basicInfo: project.basic_info,
+      createdAt: project.created_at,
+      updatedAt: project.updated_at,
+      accessedAt: project.shared_accessed_at,
+      isShared: true
+    };
+  });
+}
+
 module.exports = {
   getAllProjects,
   getProjectById,
@@ -387,4 +439,6 @@ module.exports = {
   updateProjectFromCollab,
   getProjectForGuest,
   updateShareMode,
+  trackProjectAccess,
+  getSharedProjects,
 };
