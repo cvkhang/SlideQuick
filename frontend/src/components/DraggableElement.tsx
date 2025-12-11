@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { SlideElement } from '../types';
 
 interface DraggableElementProps {
@@ -11,6 +11,9 @@ interface DraggableElementProps {
   onDrag?: (id: string, x: number, y: number) => { x: number; y: number }; // For smart guides snapping
   onDragStateChange?: (isDragging: boolean, elementId: string) => void;
 }
+
+// Debounce delay for text sync (ms) - prevents jitter on remote deploy
+const TEXT_SYNC_DEBOUNCE = 500;
 
 const _DraggableElement: React.FC<DraggableElementProps> = ({
   element,
@@ -26,6 +29,59 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const [resizeHandle, setResizeHandle] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  // Local text state for smooth typing (prevents jitter on Vercel deploy)
+  const [localText, setLocalText] = useState(element.content);
+  const textSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isTypingRef = useRef(false);
+
+  // Sync from parent when not actively typing
+  useEffect(() => {
+    if (!isTypingRef.current && element.content !== localText) {
+      setLocalText(element.content);
+    }
+  }, [element.content]);
+
+  // Debounced text sync handler
+  const handleTextChange = useCallback((newText: string) => {
+    // Update local state immediately for smooth typing
+    setLocalText(newText);
+    isTypingRef.current = true;
+
+    // Clear existing timeout
+    if (textSyncTimeoutRef.current) {
+      clearTimeout(textSyncTimeoutRef.current);
+    }
+
+    // Debounce the parent state update
+    textSyncTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      onChange(element.id, { content: newText });
+    }, TEXT_SYNC_DEBOUNCE);
+  }, [element.id, onChange]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (textSyncTimeoutRef.current) {
+        clearTimeout(textSyncTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Flush pending text sync when exiting edit mode
+  const handleExitEditMode = useCallback(() => {
+    if (textSyncTimeoutRef.current) {
+      clearTimeout(textSyncTimeoutRef.current);
+      textSyncTimeoutRef.current = null;
+    }
+    // Sync immediately if there's unsaved text
+    if (localText !== element.content) {
+      isTypingRef.current = false;
+      onChange(element.id, { content: localText });
+    }
+    setIsEditing(false);
+  }, [element.id, element.content, localText, onChange]);
 
   // Local offset for smooth dragging (CSS transform based)
   // We use refs instead of state for dragOffset while dragging to avoid re-renders
@@ -249,11 +305,11 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
                 fontFamily: element.style?.fontFamily || 'inherit',
                 cursor: 'text',
               }}
-              value={element.content}
-              onChange={(e) => onChange(element.id, { content: e.target.value })}
+              value={localText}
+              onChange={(e) => handleTextChange(e.target.value)}
               onKeyDown={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
-              onBlur={() => setIsEditing(false)}
+              onBlur={handleExitEditMode}
             />
           ) : (
             <div
@@ -270,7 +326,7 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
                 justifyContent: element.style?.textAlign === 'center' ? 'center' : element.style?.textAlign === 'right' ? 'flex-end' : 'flex-start',
               }}
             >
-              <span style={{ width: '100%', textAlign: element.style?.textAlign }}>{element.content}</span>
+              <span style={{ width: '100%', textAlign: element.style?.textAlign }}>{localText}</span>
             </div>
           )}
         </>
