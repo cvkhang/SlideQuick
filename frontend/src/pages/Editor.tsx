@@ -1,18 +1,32 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Home, Plus, Trash2, Play, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, Plus, Trash2, Play, Download, ChevronLeft, ChevronRight, Share2, Copy, X, Lock, Eye, Edit3 } from 'lucide-react';
 import { Slide } from '../../types';
 import SlideEditor from '../components/SlideEditor';
 import { exportToPDF } from '../utils/pdfExport';
-import { genShareId, createSessionDoc, subscribeSession, writeSessionProject, getSessionOnce, subscribeChat, sendChatMessage } from '../services/collab';
+import {
+  connectToRoom,
+  initializeProjectInRoom,
+  updateProjectInRoom,
+  setSessionMetadata,
+  getSessionMetadata,
+  sendChatMessage,
+  subscribeChatMessages,
+  ChatMessage,
+  setUserAwareness,
+  subscribeToAwareness,
+  UserAwareness,
+} from '../services/yjs-collab';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
 import '../styles/Editor.css';
 
 export default function Editor() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { projects, currentProject, currentSlideIndex, setCurrentProject, setCurrentSlideIndex, addSlide, deleteSlide, duplicateSlide, currentUser } = useApp();
+  const { projects, currentProject, currentSlideIndex, setCurrentProject, setCurrentSlideIndex, addSlide, deleteSlide, duplicateSlide, currentUser, loading: authLoading } = useApp();
   const [showTemplates, setShowTemplates] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; slideId: string } | null>(null);
 
@@ -20,178 +34,295 @@ export default function Editor() {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
-  const [shareRole, setShareRole] = useState<'edit' | 'view'>('edit');
+  // shareRole is now managed by currentShareMode
 
   const [isReadOnly, setIsReadOnly] = useState(false);
-  const [messages, setMessages] = useState<any[]>([]);
-  const chatUnsubRef = useRef<(() => void) | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [otherUsersAwareness, setOtherUsersAwareness] = useState<UserAwareness[]>([]);
 
-  const sessionIdRef = useRef<string | null>(null);
-  const sessionUnsubRef = useRef<(() => void) | null>(null);
-  // client id to avoid echo
-  const clientIdRef = useRef<string>(crypto && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).slice(2, 9));
-
-  // Track if project is loaded to avoid stale closure in setTimeout
+  const roomIdRef = useRef<string | null>(null);
+  const clientIdRef = useRef<string>(crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 9));
   const projectLoadedRef = useRef(false);
+  const lastYjsUpdateTime = useRef<number>(0);
+  const skipNextSync = useRef(false);
+  const isOwner = useRef(true); // Default to owner when opening own project
+  const [accessDenied, setAccessDenied] = useState<string | null>(null);
 
+  // Load project from local state first, or fetch from public API for guests
   useEffect(() => {
+    // Wait for auth to be ready before checking access
+    if (authLoading) return;
+
     const project = projects.find(p => p.id === projectId);
-    const share = searchParams.get('share');
+
     if (project) {
+      // User owns this project
       setCurrentProject(project);
       projectLoadedRef.current = true;
-    } else if (!share) {
-      // only navigate away when there's no share id — otherwise wait for joinSession to set project
-      navigate('/');
-    }
-  }, [projectId, projects, searchParams]); // note: include searchParams
+      isOwner.current = true;
+      setAccessDenied(null);
+    } else if (projectId) {
+      // Not in user's projects - check public access
+      isOwner.current = false;
 
-  // Error handling
+      async function checkAccess() {
+        try {
+          const API_URL = 'http://localhost:3001/api';
+          const response = await fetch(`${API_URL}/projects/public/${projectId}`);
+
+          if (!response.ok) {
+            setAccessDenied('プロジェクトが見つかりません');
+            return;
+          }
+
+          const data = await response.json();
+
+          if (data.shareMode === 'private') {
+            // Check if logged in user is owner
+            if (!currentUser || currentUser.id !== data.ownerId) {
+              setAccessDenied('このプロジェクトは非公開です');
+              return;
+            }
+          }
+
+          if (data.shareMode === 'view') {
+            // Redirect to viewer
+            navigate(`/viewer/${projectId}`, { replace: true });
+            return;
+          }
+
+          // shareMode is 'edit' - require login
+          if (data.shareMode === 'edit' && !currentUser) {
+            // Redirect to login with return URL
+            navigate(`/login?redirect=/editor/${projectId}`, { replace: true });
+            return;
+          }
+
+          // shareMode is 'edit' and user is logged in - allow access
+          setCurrentProject({
+            ...data,
+            createdAt: new Date(data.createdAt),
+            updatedAt: new Date(data.updatedAt),
+          });
+          projectLoadedRef.current = true;
+          setAccessDenied(null);
+
+        } catch (err) {
+          console.error('Error checking access:', err);
+          setAccessDenied('プロジェクトの読み込みに失敗しました');
+        }
+      }
+
+      checkAccess();
+    }
+  }, [projectId, projects, currentUser, navigate, authLoading]);
+
   const [loadingError, setLoadingError] = useState<string | null>(null);
 
-  // auto-join if URL has ?share=...
+  // ALWAYS connect to Y.js room using projectId (like Canva)
+  // The ?room param just indicates a shared session for access control
   useEffect(() => {
-    const s = searchParams.get('share');
-    if (s) {
-      console.log('Found share param:', s);
-      setLoadingError(null);
-      projectLoadedRef.current = false; // reset loading state
+    if (!projectId) return;
 
-      // Set a timeout to show error if loading takes too long
-      const timer = setTimeout(() => {
-        // Use ref to check current status, preventing stale closure issue
-        if (!projectLoadedRef.current) {
-          console.warn('Loading timeout reached (15s) - Project not loaded');
-          setLoadingError('読み込みに時間がかかっています。リンクが正しいか確認してください。');
-        } else {
-          console.log('Timeout check passed: Project is loaded');
-        }
-      }, 15000); // Extended to 15 seconds
+    const shareRoom = searchParams.get('room');
+    // Use projectId as the room name for consistent collaboration
+    const actualRoomId = projectId;
 
-      joinSession(s);
+    setLoadingError(null);
+    roomIdRef.current = actualRoomId;
 
-      return () => clearTimeout(timer);
-    }
-    return () => {
-      // cleanup on unmount: unsubscribe session if exists
-      if (sessionUnsubRef.current) {
-        try { sessionUnsubRef.current(); } catch { }
-        sessionUnsubRef.current = null;
-        sessionUnsubRef.current = null;
-        sessionIdRef.current = null;
+    const timer = setTimeout(() => {
+      // Only show timeout error for non-owners waiting for data
+      if (!projectLoadedRef.current && !isOwner.current) {
+        setLoadingError('読み込みがタイムアウトしました。リンクを確認するか、更新してください。');
       }
-      if (chatUnsubRef.current) {
-        chatUnsubRef.current();
-        chatUnsubRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+    }, 15000);
 
-  // subscribe session -> apply remote updates to currentProject and role
-  async function joinSession(sessionId: string) {
-    console.log('Joining session:', sessionId);
-    // unsubscribe previous
-    if (sessionUnsubRef.current) {
-      sessionUnsubRef.current();
-      sessionUnsubRef.current = null;
-      sessionUnsubRef.current = null;
-    }
-    if (chatUnsubRef.current) {
-      chatUnsubRef.current();
-      chatUnsubRef.current = null;
-    }
-    sessionIdRef.current = sessionId;
+    let cleanup: (() => void) | null = null;
+    let chatCleanup: (() => void) | null = null;
+    let awarenessCleanup: (() => void) | null = null;
+    let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // Try fetch session once immediately (so viewer sees content without waiting)
     try {
-      console.log('Fetching session once...');
-      const snap = await getSessionOnce(sessionId);
-      console.log('fetchSessionOnce result:', snap);
+      // Connect to Y.js room
+      cleanup = connectToRoom(
+        actualRoomId,
+        (updatedProject) => {
+          try {
+            // Mark that this update came from Y.js - skip syncing back for 200ms
+            lastYjsUpdateTime.current = Date.now();
+            skipNextSync.current = true;
 
-      if (snap && snap.project) {
-        // apply role/read-only logic from snapshot
-        const role: 'edit' | 'view' = snap.role || 'edit';
-        const ownerId: string | null = snap.ownerId || null;
-        const isOwner = !!(currentUser && ownerId && currentUser.id === ownerId);
-        setIsReadOnly(role === 'view' && !isOwner);
-        setCurrentProject(snap.project);
-        projectLoadedRef.current = true; // Mark as loaded
-        console.log('Project loaded from snapshot');
-      } else if (snap === null) {
-        // explicitly null means not found
-        console.warn('Session not found (snap is null)');
-        setLoadingError('指定された共有スライドは見つかりませんでした。');
+            setCurrentProject(updatedProject);
+            projectLoadedRef.current = true;
+            setLoadingError(null); // Clear any pending error
+
+            // Check role for shared sessions
+            if (shareRoom) {
+              const meta = getSessionMetadata(shareRoom);
+              if (meta) {
+                const isSessionOwner = !!(currentUser && meta.ownerId && currentUser.id === meta.ownerId);
+                setIsReadOnly(meta.role === 'view' && !isSessionOwner);
+              }
+            }
+          } catch (err) {
+            console.error('Error processing Y.js project update:', err);
+          }
+        },
+        (status) => {
+          // Clear pending disconnect error timer on connect
+          if (status === 'connected' && disconnectTimer) {
+            clearTimeout(disconnectTimer);
+            disconnectTimer = null;
+          }
+
+          // When owner connects and Y.js is empty, initialize with local project
+          if (status === 'connected' && isOwner.current && currentProject) {
+            // Small delay to let sync complete first
+            setTimeout(() => {
+              const yProject = getSessionMetadata(actualRoomId);
+              // If no data in Y.js yet, initialize it
+              if (!yProject) {
+                initializeProjectInRoom(actualRoomId, currentProject);
+                setSessionMetadata(actualRoomId, 'edit', currentUser?.id);
+              }
+            }, 500);
+          }
+
+          // Delay showing disconnect error
+          if (status === 'disconnected' && !projectLoadedRef.current && !isOwner.current) {
+            disconnectTimer = setTimeout(() => {
+              if (!projectLoadedRef.current && roomIdRef.current === actualRoomId) {
+                setLoadingError('接続が切れました。ネットワークを確認して再試行してください。');
+              }
+            }, 1000);
+          }
+        }
+      );
+
+      // Subscribe to chat
+      try {
+        chatCleanup = subscribeChatMessages(actualRoomId, setMessages);
+      } catch (chatErr) {
+        console.error('Failed to subscribe to chat:', chatErr);
+      }
+
+      // Subscribe to awareness (other users' selections)
+      try {
+        awarenessCleanup = subscribeToAwareness(actualRoomId, (users) => {
+          // Filter out current user's own awareness
+          setOtherUsersAwareness(users.filter(u => u.user?.name !== currentUser?.username));
+        });
+      } catch (awarenessErr) {
+        console.error('Failed to subscribe to awareness:', awarenessErr);
       }
     } catch (err) {
-      console.warn('getSessionOnce failed', err);
+      console.error('Failed to connect to Y.js room:', err);
+      // Only show error for non-owners
+      if (!isOwner.current) {
+        setLoadingError('コラボレーションセッションへの接続に失敗しました。再試行してください。');
+      }
     }
 
-    // then subscribe for realtime/polling updates
-    console.log('Subscribing to session...');
-    const unsub = subscribeSession(sessionId, (data) => {
-      console.log('Session update received:', data ? 'Data present' : 'Null');
-      if (!data) {
-        // session missing: wait for getSessionOnce to handle "not found" or keep waiting
-        // if getSessionOnce already finished and found nothing, error is shown.
-        // if this returns null late, it might mean deletion.
-        return;
-      }
-      const role: 'edit' | 'view' = data.role || 'edit';
-      const ownerId: string | null = data.ownerId || null;
-      const isOwner = !!(currentUser && ownerId && currentUser.id === ownerId);
-      setIsReadOnly(role === 'view' && !isOwner);
+    return () => {
+      clearTimeout(timer);
+      if (disconnectTimer) clearTimeout(disconnectTimer);
+      cleanup?.();
+      chatCleanup?.();
+      awarenessCleanup?.();
+      roomIdRef.current = null;
+    };
+  }, [projectId, searchParams, currentUser]);
 
-      // ignore updates originated from this client
-      if (data.lastClient === clientIdRef.current) return;
-      if (data.project) {
-        setCurrentProject(data.project);
-        projectLoadedRef.current = true; // Mark as loaded (in case snapshot failed but stream worked)
-      }
-    });
+  // Sync project changes to Y.js room (with loop prevention)
+  useEffect(() => {
+    if (!roomIdRef.current || !currentProject || isReadOnly) return;
 
-    sessionUnsubRef.current = unsub;
+    // Skip syncing if this update came from Y.js (within last 200ms)
+    if (skipNextSync.current || Date.now() - lastYjsUpdateTime.current < 200) {
+      skipNextSync.current = false;
+      return;
+    }
 
-    // subscribe chat
-    const chatUnsub = subscribeChat(sessionId, (msgs) => {
-      setMessages(msgs);
-    });
-    chatUnsubRef.current = chatUnsub;
+    // Update Y.js document with current project
+    updateProjectInRoom(roomIdRef.current, currentProject);
+  }, [currentProject, isReadOnly]);
+
+  // Current share mode state
+  const [currentShareMode, setCurrentShareMode] = useState<'private' | 'view' | 'edit'>('private');
+
+  // Get the appropriate share link based on mode
+  function getShareLink(mode: 'private' | 'view' | 'edit'): string {
+    if (!currentProject) return '';
+    const basePath = mode === 'view' ? '/viewer' : '/editor';
+    return `${window.location.origin}${basePath}/${currentProject.id}`;
   }
 
-  // create share session (owner) and subscribe
-  async function handleCreateShare() {
+  // Open share modal - fetch current share mode and show fixed link
+  async function handleOpenShareModal() {
     if (!currentProject) return;
-    const sid = genShareId();
-    const link = `${window.location.origin}/editor/${currentProject.id}?share=${sid}`;
-    setShareLink(link);
+
     setShareError(null);
     setShareModalOpen(true);
 
+    // Fetch current share mode from server
     try {
-      const ownerId = currentUser ? currentUser.id : undefined;
-      await createSessionDoc(sid, currentProject, shareRole, ownerId);
-      await joinSession(sid);
+      const API_URL = 'http://localhost:3001/api';
+      const response = await fetch(`${API_URL}/projects/public/${currentProject.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        const mode = data.shareMode || 'private';
+        setCurrentShareMode(mode);
+        setShareLink(getShareLink(mode));
+      } else {
+        setCurrentShareMode('private');
+        setShareLink(getShareLink('private'));
+      }
     } catch (err) {
-      console.error('Failed to create share session', err);
-      setShareError('共有セッションの作成に失敗しました。オフラインリンクを作成しました。再試行できます。');
+      console.error('Failed to fetch share mode:', err);
+      setCurrentShareMode('private');
+      setShareLink(getShareLink('private'));
     }
   }
 
-  // when local currentProject changes, push to session (if any and if editable)
-  useEffect(() => {
-    if (!sessionIdRef.current) return;
+  // Update share mode
+  async function handleUpdateShareMode(newMode: 'private' | 'view' | 'edit') {
     if (!currentProject) return;
-    // do not push if read-only local client
-    if (isReadOnly) return;
-    (async () => {
-      try {
-        await writeSessionProject(sessionIdRef.current as string, currentProject, clientIdRef.current);
-      } catch (err) {
-        console.error('Failed to write session project', err);
+
+    const token = localStorage.getItem('sq_token');
+    if (!token) {
+      setShareError('共有設定を変更するにはログインが必要です。');
+      return;
+    }
+
+    try {
+      const API_URL = 'http://localhost:3001/api';
+
+      const response = await fetch(`${API_URL}/projects/${currentProject.id}/share`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ shareMode: newMode }),
+      });
+
+      if (response.ok) {
+        setCurrentShareMode(newMode);
+        setShareLink(getShareLink(newMode));
+        setShareError(null);
+      } else if (response.status === 401) {
+        setShareError('セッションの有効期限が切れました。再度ログインしてください。');
+      } else {
+        const data = await response.json();
+        setShareError(data.error || '共有モードの更新に失敗しました');
       }
-    })();
-  }, [currentProject, isReadOnly]);
+    } catch (err) {
+      console.error('Failed to update share mode:', err);
+      setShareError('共有モードの更新に失敗しました。再試行してください。');
+    }
+  }
+
 
   useEffect(() => {
     const handleClickOutside = () => setContextMenu(null);
@@ -199,24 +330,33 @@ export default function Editor() {
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
+  const handleExport = async () => {
+    if (!currentProject) return;
+    await exportToPDF(currentProject);
+  };
+
   if (loadingError) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
-        <h2>エラー</h2>
-        <p>{loadingError}</p>
-        <button className="btn-primary" onClick={() => navigate('/')}>ホームへ戻る</button>
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">エラー</h2>
+        <p className="text-slate-600 mb-6">{loadingError}</p>
+        <Button onClick={() => navigate('/')}>ホームに戻る</Button>
       </div>
     );
   }
 
   if (!currentProject) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex justify-center items-center h-screen bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
   }
 
   const currentSlide = currentProject.slides[currentSlideIndex];
 
   if (!currentSlide) {
-    return <div>Loading slide...</div>;
+    return <div className="p-8 text-center text-slate-500">スライドを読み込み中...</div>;
   }
 
   const handleAddSlide = async (template: Slide['template']) => {
@@ -245,308 +385,405 @@ export default function Editor() {
 
   const handleContextMenu = (e: React.MouseEvent, slideId: string) => {
     e.preventDefault();
-    setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      slideId
-    });
+    setContextMenu({ x: e.clientX, y: e.clientY, slideId });
   };
 
-  const handlePresent = () => {
-    if (searchParams.get('share')) {
-      navigate(`/present/${currentProject.id}?share=${searchParams.get('share')}`);
-    } else {
-      navigate(`/present/${currentProject.id}`);
+  const handleSendMessage = async (text: string) => {
+    if (roomIdRef.current) {
+      sendChatMessage(roomIdRef.current, {
+        sender: currentUser?.username || `ゲスト-${clientIdRef.current.slice(0, 4)}`,
+        text,
+        timestamp: Date.now()
+      });
     }
   };
 
-  const handleExport = async () => {
-    await exportToPDF(currentProject);
-  };
-
-  // const handleLogout = () => {
-  //   logout();
-  //   navigate('/login');
-  // };
-
   const templates: Array<{ id: Slide['template']; name: string; description: string }> = [
-    { id: 'blank', name: '空白', description: 'ゼロから作成' },
-    { id: 'title', name: 'タイトル', description: '中央揃えの大きなタイトル' },
-    { id: 'title-content', name: 'タイトルと内容', description: 'タイトルと本文' },
-    { id: 'two-column', name: '2カラム', description: '2列のレイアウト' },
-    { id: 'image-text', name: '画像とテキスト', description: '画像と説明文' },
+    { id: 'blank', name: '空白', description: '空のキャンバス' },
+    { id: 'title', name: 'タイトルのみ', description: '中央に大きなタイトル' },
+    { id: 'title-content', name: 'タイトルとコンテンツ', description: 'クラシックなレイアウト' },
+    { id: 'two-column', name: '2カラム', description: '横並びのコンテンツ' },
+    { id: 'image-text', name: '画像とテキスト', description: 'キャプション付きビジュアル' },
+    { id: 'quote', name: '引用', description: '引用を強調' },
+    { id: 'big-number', name: '大きな数字', description: '統計を強調' },
   ];
 
-  // render: add Share button in header and share modal with role selector
-  return (
-    <div className="editor">
-      <header className="editor-header">
-        <button className="btn-icon" onClick={() => navigate('/')} title="ホーム">
-          <Home size={20} />
-        </button>
-        <h1 className="project-title">{currentProject.name}{isReadOnly ? ' (閲覧専用)' : ''}</h1>
-        <div className="header-actions">
-          {!isReadOnly && (
-            <button className="btn-secondary" onClick={handleExport}>
-              <Download size={18} />
-              PDFエクスポート
-            </button>
-          )}
-          <button className="btn-primary" onClick={handlePresent}>
-            <Play size={18} />
-            プレゼン開始
-          </button>
+  // Access denied screen
+  if (accessDenied) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-100">
+        <div className="text-center">
+          <Lock className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-slate-700 mb-2">{accessDenied}</h2>
+          <p className="text-slate-500 mb-4">このプロジェクトへのアクセス権がありません。</p>
+          <Button onClick={() => navigate('/')}>ホームへ</Button>
+        </div>
+      </div>
+    );
+  }
 
-          <button className="btn-secondary" onClick={() => setShareModalOpen(true)} style={{ marginLeft: 8 }}>
-            共有
+  // Loading state while checking access
+  if (!currentProject) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-100">
+        <div className="text-center">
+          <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-slate-600">プロジェクトを読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen flex flex-col bg-slate-100 font-sans text-slate-900">
+      {/* Header */}
+      <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center px-4 justify-between z-20 shadow-sm">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/')}
+            className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-600"
+            title="Back to Home"
+          >
+            <Home className="w-5 h-5" />
           </button>
+          <div className="flex flex-col">
+            <h1 className="text-lg font-bold font-display text-slate-800 flex items-center gap-2">
+              {currentProject.name}
+              {isReadOnly && <span className="text-xs bg-slate-200 px-2 py-0.5 rounded-full text-slate-600 font-normal">閲覧のみ</span>}
+            </h1>
+            <span className="text-xs text-slate-500">たった今編集</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {!isReadOnly && (
+            <Button variant="ghost" size="sm" onClick={handleExport} className="hidden sm:flex">
+              <Download className="w-4 h-4 mr-2" /> PDFエクスポート
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" onClick={handleOpenShareModal}>
+            <Share2 className="w-4 h-4 mr-2" /> 共有
+          </Button>
+          <Button variant="primary" size="sm" onClick={() => navigate(searchParams.get('room') ? `/present/${currentProject.id}?room=${searchParams.get('room')}` : `/present/${currentProject.id}`)}>
+            <Play className="w-4 h-4 mr-2" /> プレゼンテーション
+          </Button>
         </div>
       </header>
 
-      <div className="editor-container">
-        <aside className="slides-sidebar">
-          <div className="sidebar-header">
-            <h3>スライド</h3>
+      {/* Main Workspace */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Thumbnails Sidebar */}
+        <aside className="w-64 bg-white border-r border-slate-200 flex flex-col z-10">
+          <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+            <h3 className="font-semibold text-slate-700">スライド</h3>
             {!isReadOnly && (
-              <button className="btn-icon" onClick={() => setShowTemplates(true)} title="スライドを追加">
-                <Plus size={18} />
+              <button
+                onClick={() => setShowTemplates(true)}
+                className="p-1.5 bg-primary-50 text-primary-600 rounded-md hover:bg-primary-100 transition-colors shadow-sm cursor-pointer"
+                title="スライドを追加"
+              >
+                <Plus className="w-5 h-5" />
               </button>
             )}
           </div>
-          <div className="slides-list">
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             {currentProject.slides.map((slide, index) => (
               <div
                 key={slide.id}
-                className={`slide-thumbnail ${index === currentSlideIndex ? 'active' : ''}`}
+                className={`group relative rounded-lg border-2 transition-all duration-200 cursor-pointer overflow-hidden ${index === currentSlideIndex
+                  ? 'border-primary-500 shadow-md ring-2 ring-primary-100 transform scale-[1.02]'
+                  : 'border-transparent hover:border-slate-300 hover:shadow-sm bg-white'
+                  }`}
                 onClick={() => setCurrentSlideIndex(index)}
                 onContextMenu={(e) => { if (!isReadOnly) handleContextMenu(e, slide.id); }}
               >
-                <div className="thumbnail-number">{index + 1}</div>
-                <div className="thumbnail-content" style={{ backgroundColor: slide.backgroundColor, color: slide.textColor }}>
-                  {(() => {
-                    // Mini-render logic
-                    const titleStyle: React.CSSProperties = { fontSize: '0.6rem', fontWeight: 'bold', textAlign: 'center', width: '100%', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' };
-                    const textStyle: React.CSSProperties = { fontSize: '0.4rem', flex: 1, overflow: 'hidden', width: '100%' };
-
-                    switch (slide.template) {
-                      case 'title':
-                        return (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
-                            <div style={titleStyle}>{slide.title || 'タイトル'}</div>
-                          </div>
-                        );
-                      case 'title-content':
-                        return (
-                          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', gap: '2px' }}>
-                            <div style={{ ...titleStyle, flex: '0 0 auto', textAlign: 'left' }}>{slide.title || 'タイトル'}</div>
-                            <div style={textStyle}>{slide.content || 'クリックして編集'}</div>
-                          </div>
-                        );
-                      case 'two-column':
-                        return (
-                          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', gap: '2px' }}>
-                            <div style={{ ...titleStyle, flex: '0 0 auto', textAlign: 'left' }}>{slide.title || 'タイトル'}</div>
-                            <div style={{ display: 'flex', gap: '2px', flex: 1 }}>
-                              <div style={{ flex: 1, fontSize: '0.3rem', border: '1px dashed #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>列1</div>
-                              <div style={{ borderLeft: '1px solid #eee', width: 0 }}></div>
-                              <div style={{ flex: 1, fontSize: '0.3rem', overflow: 'hidden' }}>{slide.content || '本文'}</div>
-                            </div>
-                          </div>
-                        );
-                      case 'image-text':
-                        return (
-                          <div style={{ display: 'flex', height: '100%', width: '100%', gap: '4px', alignItems: 'center' }}>
-                            <div style={{ width: '40%', height: '80%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                              {slide.imageUrl ? <img src={slide.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '0.5rem' }}>📷</span>}
-                            </div>
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                              <div style={{ ...titleStyle, textAlign: 'left', fontSize: '0.5rem' }}>{slide.title || 'タイトル'}</div>
-                              <div style={{ ...textStyle, fontSize: '0.3rem', height: '2em' }}>{slide.content || '本文'}</div>
-                            </div>
-                          </div>
-                        );
-                      case 'blank':
-                      default:
-                        return (
-                          <div style={{ width: '100%', height: '100%', padding: '2px', fontSize: '0.4rem', overflow: 'hidden' }}>
-                            {slide.content || '空白'}
-                          </div>
-                        );
+                <div className="absolute left-2 top-2 z-10 w-6 h-6 flex items-center justify-center bg-black/50 text-white text-xs font-bold rounded-full shadow-sm backdrop-blur-sm">
+                  {index + 1}
+                </div>
+                {/* Mini Slide Preview */}
+                <div
+                  className="aspect-video w-full relative overflow-hidden"
+                  style={{ backgroundColor: slide.backgroundColor || '#ffffff' }}
+                >
+                  {/* Render actual elements scaled down */}
+                  {slide.elements?.map(el => {
+                    const scale = 0.24; // Thumbnail is ~24% of actual slide
+                    if (el.type === 'text') {
+                      return (
+                        <div
+                          key={el.id}
+                          className="absolute overflow-hidden whitespace-pre-wrap"
+                          style={{
+                            left: el.x * scale,
+                            top: el.y * scale,
+                            width: el.width * scale,
+                            height: el.height * scale,
+                            fontSize: (el.style?.fontSize || 20) * scale,
+                            fontWeight: el.style?.fontWeight,
+                            fontStyle: el.style?.fontStyle,
+                            textAlign: el.style?.textAlign,
+                            color: el.style?.color || '#000',
+                            fontFamily: el.style?.fontFamily,
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          {el.content}
+                        </div>
+                      );
                     }
-                  })()}
+                    if (el.type === 'image') {
+                      return (
+                        <img
+                          key={el.id}
+                          src={el.content}
+                          alt=""
+                          className="absolute object-cover"
+                          style={{
+                            left: el.x * scale,
+                            top: el.y * scale,
+                            width: el.width * scale,
+                            height: el.height * scale,
+                          }}
+                        />
+                      );
+                    }
+                    if (el.type === 'shape') {
+                      return (
+                        <div
+                          key={el.id}
+                          className="absolute"
+                          style={{
+                            left: el.x * scale,
+                            top: el.y * scale,
+                            width: el.width * scale,
+                            height: el.height * scale,
+                            backgroundColor: el.style?.backgroundColor || '#e2e8f0',
+                            borderRadius: el.style?.borderRadius,
+                          }}
+                        />
+                      );
+                    }
+                    return null;
+                  })}
+                  {/* Empty state */}
+                  {(!slide.elements || slide.elements.length === 0) && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-[8px] text-slate-300 uppercase tracking-wider">
+                        {slide.template === 'blank' ? '空白' : slide.template}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         </aside>
 
-        <main className="editor-main">
-          <div className="editor-toolbar">
-            <button
-              className="btn-icon"
-              onClick={() => setCurrentSlideIndex(Math.max(0, currentSlideIndex - 1))}
-              disabled={currentSlideIndex === 0}
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <span className="slide-indicator">
-              スライド {currentSlideIndex + 1} / {currentProject.slides.length}
-            </span>
-            <button
-              className="btn-icon"
-              onClick={() => setCurrentSlideIndex(Math.min(currentProject.slides.length - 1, currentSlideIndex + 1))}
-              disabled={currentSlideIndex === currentProject.slides.length - 1}
-            >
-              <ChevronRight size={20} />
-            </button>
-            <div className="spacer"></div>
+        {/* Editor Stage */}
+        <main className="flex-1 flex flex-col relative bg-slate-100/50">
+          {/* Canvas Toolbar */}
+          <div className="h-12 bg-white border-b border-slate-200 flex items-center px-4 justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                className="p-1.5 hover:bg-slate-100 rounded text-slate-600 disabled:opacity-30"
+                onClick={() => setCurrentSlideIndex(Math.max(0, currentSlideIndex - 1))}
+                disabled={currentSlideIndex === 0}
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <span className="text-sm font-medium text-slate-500 min-w-[3rem] text-center">
+                {currentSlideIndex + 1} / {currentProject.slides.length}
+              </span>
+              <button
+                className="p-1.5 hover:bg-slate-100 rounded text-slate-600 disabled:opacity-30"
+                onClick={() => setCurrentSlideIndex(Math.min(currentProject.slides.length - 1, currentSlideIndex + 1))}
+                disabled={currentSlideIndex === currentProject.slides.length - 1}
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+
             {!isReadOnly && (
-              <button className="btn-danger-outline" onClick={handleDeleteSlide}>
-                <Trash2 size={18} />
-                スライドを削除
+              <button
+                onClick={handleDeleteSlide}
+                className="flex items-center gap-2 text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-md text-sm transition-colors"
+              >
+                <Trash2 className="w-4 h-4" /> <span className="hidden sm:inline">スライド削除</span>
               </button>
             )}
           </div>
 
-          {/* pass readOnly prop to SlideEditor so it can disable editing UI */}
-          <SlideEditor
-            slide={currentSlide}
-            projectId={currentProject.id}
-            readOnly={isReadOnly}
-            messages={messages}
-            username={currentUser?.username || `Guest-${clientIdRef.current.slice(0, 4)}`}
-            onSendMessage={async (text) => {
-              if (sessionIdRef.current) {
-                await sendChatMessage(sessionIdRef.current, {
-                  sender: currentUser?.username || `Guest-${clientIdRef.current.slice(0, 4)}`,
-                  text,
-                  timestamp: Date.now()
-                });
-              }
-            }}
-          />
+          {/* Canvas */}
+          <div className="flex-1 overflow-auto flex items-center justify-center p-8">
+            <SlideEditor
+              slide={currentSlide}
+              projectId={currentProject.id}
+              readOnly={isReadOnly}
+              messages={messages}
+              username={currentUser?.username || `ゲスト-${clientIdRef.current.slice(0, 4)}`}
+              onSendMessage={handleSendMessage}
+              otherUsersSelections={otherUsersAwareness}
+              onElementSelect={(elementId: string | null) => {
+                if (roomIdRef.current && currentUser) {
+                  setUserAwareness(
+                    roomIdRef.current,
+                    currentUser.username,
+                    elementId,
+                    currentSlide.id
+                  );
+                }
+              }}
+            />
+          </div>
         </main>
       </div>
 
+      {/* Templates Modal */}
       {showTemplates && (
-        <div className="modal-overlay" onClick={() => setShowTemplates(false)}>
-          <div className="modal templates-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>テンプレートを選択</h2>
-            <div className="templates-grid">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setShowTemplates(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-8 animate-slide-up max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold font-display text-slate-900">レイアウトを選択</h2>
+              <button onClick={() => setShowTemplates(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
               {templates.map(template => (
                 <div
                   key={template.id}
-                  className="template-card"
+                  className="group cursor-pointer"
                   onClick={() => handleAddSlide(template.id)}
                 >
-                  <div className={`template-preview template-${template.id}`}>
-                    <div className="preview-content">
-                      {template.id === 'title' && <div className="preview-title">Title</div>}
-                      {template.id === 'title-content' && (
-                        <>
-                          <div className="preview-title-small">Title</div>
-                          <div className="preview-text">Content</div>
-                        </>
-                      )}
-                      {template.id === 'two-column' && (
-                        <div className="preview-columns">
-                          <div className="preview-col">Column 1</div>
-                          <div className="preview-col">Column 2</div>
-                        </div>
-                      )}
-                      {template.id === 'image-text' && (
-                        <div className="preview-image-text">
-                          <div className="preview-image">📷</div>
-                          <div className="preview-text-small">Text</div>
-                        </div>
-                      )}
-                    </div>
+                  <div className="aspect-video bg-slate-100 rounded-lg border-2 border-transparent group-hover:border-primary-500 group-hover:shadow-lg transition-all mb-3 flex items-center justify-center overflow-hidden relative">
+                    {/* Preview Placeholder */}
+                    <div className="absolute inset-0 bg-white opacity-50"></div>
+                    <span className="relative z-10 text-slate-400 font-medium text-xs uppercase tracking-wider">{template.name}</span>
                   </div>
-                  <h3>{template.name}</h3>
-                  <p>{template.description}</p>
+                  <h3 className="font-semibold text-slate-800 text-center group-hover:text-primary-600 transition-colors">{template.name}</h3>
+                  <p className="text-xs text-slate-500 text-center mt-1">{template.description}</p>
                 </div>
               ))}
             </div>
           </div>
         </div>
       )}
+
+      {/* Context Menu */}
       {contextMenu && (
         <div
-          className="context-menu"
-          style={{
-            position: 'fixed',
-            top: contextMenu.y,
-            left: contextMenu.x,
-            backgroundColor: 'white',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-            borderRadius: '4px',
-            padding: '8px 0',
-            zIndex: 1000,
-          }}
+          className="fixed bg-white shadow-xl rounded-lg py-1 z-[100] border border-slate-100 min-w-[160px] animate-fade-in"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            style={{
-              display: 'block',
-              width: '100%',
-              textAlign: 'left',
-              padding: '8px 16px',
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              fontSize: '14px',
-            }}
-            className="context-menu-item"
+            className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"
             onClick={handleDuplicateSlide}
           >
-            スライドを複製
+            <Copy className="w-4 h-4" /> スライドを複製
           </button>
         </div>
       )}
 
-      {/* Share modal */}
+      {/* Share Modal */}
       {shareModalOpen && (
-        <div className="modal-overlay" onClick={() => setShareModalOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>プロジェクトを共有</h2>
-            <p>共有リンクの権限を選択してください。</p>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="radio" checked={shareRole === 'edit'} onChange={() => setShareRole('edit')} />
-                編集可能
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="radio" checked={shareRole === 'view'} onChange={() => setShareRole('view')} />
-                閲覧のみ
-              </label>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShareModalOpen(false)}>
+          <Card className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h2 className="text-xl font-bold font-display text-slate-900">プロジェクトを共有</h2>
+                <p className="text-sm text-slate-500 mt-1">このプロジェクトへのアクセス権を管理します。</p>
+              </div>
+              <button onClick={() => setShareModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div style={{ marginBottom: 8 }}>
-              <button className="btn-primary" onClick={handleCreateShare}>リンクを作成</button>
-            </div>
+            {/* Access Mode Selection */}
+            <div className="space-y-2 mb-6">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">アクセスレベル</p>
 
-            {shareLink && (
-              <>
-                <p>共有リンク:</p>
-                <input type="text" readOnly value={shareLink} style={{ width: '100%' }} />
-                {shareError && (
-                  <div style={{ marginTop: 8, color: 'red' }}>{shareError}</div>
-                )}
-                <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                  <button className="btn-primary" onClick={async () => {
-                    if (shareLink) {
-                      await navigator.clipboard.writeText(shareLink);
-                      alert('共有リンクをコピーしました');
-                    }
-                  }}>コピー</button>
-                  <button className="btn-secondary" onClick={() => setShareModalOpen(false)}>閉じる</button>
+              {/* Private */}
+              <button
+                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all ${currentShareMode === 'private'
+                  ? 'border-primary-500 bg-primary-50 text-primary-700'
+                  : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                  }`}
+                onClick={() => handleUpdateShareMode('private')}
+              >
+                <Lock className="w-5 h-5" />
+                <div className="text-left flex-1">
+                  <div className="font-medium">非公開</div>
+                  <div className="text-xs opacity-70">あなただけがアクセス可能</div>
                 </div>
-              </>
+              </button>
+
+              {/* View Only */}
+              <button
+                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all ${currentShareMode === 'view'
+                  ? 'border-primary-500 bg-primary-50 text-primary-700'
+                  : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                  }`}
+                onClick={() => handleUpdateShareMode('view')}
+              >
+                <Eye className="w-5 h-5" />
+                <div className="text-left flex-1">
+                  <div className="font-medium">リンクを知っている全員が閲覧可能</div>
+                  <div className="text-xs opacity-70">閲覧者向けの読み取り専用アクセス</div>
+                </div>
+              </button>
+
+              {/* Can Edit */}
+              <button
+                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all ${currentShareMode === 'edit'
+                  ? 'border-primary-500 bg-primary-50 text-primary-700'
+                  : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                  }`}
+                onClick={() => handleUpdateShareMode('edit')}
+              >
+                <Edit3 className="w-5 h-5" />
+                <div className="text-left flex-1">
+                  <div className="font-medium">リンクを知っている全員が編集可能</div>
+                  <div className="text-xs opacity-70">全員に完全な編集権限</div>
+                </div>
+              </button>
+            </div>
+
+            {/* Share Link (only show if not private) */}
+            {currentShareMode !== 'private' && shareLink && (
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">共有リンク</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareLink}
+                    className="flex-1 bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-600 focus:outline-none"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={async () => {
+                      if (shareLink) {
+                        await navigator.clipboard.writeText(shareLink);
+                        alert('リンクをクリップボードにコピーしました！');
+                      }
+                    }}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
             )}
-          </div>
+
+            {shareError && (
+              <p className="text-xs text-red-500 mt-2">{shareError}</p>
+            )}
+          </Card>
         </div>
       )}
     </div>
   );
 }
-

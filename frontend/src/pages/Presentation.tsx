@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getSessionOnce } from '../services/collab';
+import { connectToRoomOnce } from '../services/yjs-collab';
+import { DraggableElement } from '../components/DraggableElement';
 import '../styles/Presentation.css';
+
+const SLIDE_WIDTH = 960;
+const SLIDE_HEIGHT = 540;
 
 export default function Presentation() {
   const { projectId } = useParams();
@@ -12,29 +16,63 @@ export default function Presentation() {
   const { projects } = useApp();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [project, setProject] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const slideContainerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
 
   useEffect(() => {
     const proj = projects.find(p => p.id === projectId);
-    const share = searchParams.get('share');
+    const room = searchParams.get('room');
 
     if (proj) {
       setProject(proj);
-    } else if (share) {
-      // Try to fetch shared session
-      getSessionOnce(share).then((snap) => {
-        if (snap && snap.project) {
-          setProject(snap.project);
-        } else {
-          // Not found
-          console.warn('Shared presentation not found');
-          navigate('/');
-        }
-      });
+      setLoading(false);
+    } else if (room) {
+      // Try to fetch shared session via Y.js
+      setLoading(true);
+      connectToRoomOnce(room)
+        .then(({ project: sharedProject }) => {
+          if (sharedProject) {
+            setProject(sharedProject);
+          } else {
+            setError('共有プレゼンテーションが見つかりません。');
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to load shared presentation:', err);
+          setError('共有プレゼンテーションの読み込みに失敗しました。');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
     } else {
       // Not found locally and no share link
       navigate('/');
     }
-  }, [projectId, projects, searchParams]);
+  }, [projectId, projects, searchParams, navigate]);
+
+  // Handle Window Resize for Scaling
+  useEffect(() => {
+    const handleResize = () => {
+      if (!slideContainerRef.current) return;
+
+      // Use window inner dimensions directly effectively full screen
+      const availableWidth = window.innerWidth;
+      const availableHeight = window.innerHeight;
+
+      const scaleX = availableWidth / SLIDE_WIDTH;
+      const scaleY = availableHeight / SLIDE_HEIGHT;
+
+      // Fit Contain
+      setScale(Math.min(scaleX, scaleY));
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Initial call
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -51,8 +89,34 @@ export default function Presentation() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, project]);
 
+  if (loading) {
+    return (
+      <div style={{ color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontSize: '2rem', background: '#1e293b' }}>
+        <div className="animate-pulse">プレゼンテーションを読み込み中...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', fontSize: '1.5rem', background: '#1e293b' }}>
+        <p>{error}</p>
+        <button
+          onClick={() => navigate('/')}
+          style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: '#3b82f6', borderRadius: '0.5rem', cursor: 'pointer' }}
+        >
+          ホームに戻る
+        </button>
+      </div>
+    );
+  }
+
   if (!project) {
-    return <div style={{ color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontSize: '2rem' }}>読み込み中...</div>;
+    return (
+      <div style={{ color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontSize: '2rem', background: '#1e293b' }}>
+        読み込み中...
+      </div>
+    );
   }
 
   const currentSlide = project.slides[currentIndex];
@@ -70,81 +134,51 @@ export default function Presentation() {
   };
 
   const exitPresentation = () => {
-    const share = searchParams.get('share');
-    if (share) {
-      navigate(`/editor/${projectId}?share=${share}`);
+    const room = searchParams.get('room');
+    if (room) {
+      navigate(`/editor/${projectId}?room=${room}`);
     } else {
       navigate(`/editor/${projectId}`);
     }
   };
 
-  const renderSlideContent = () => {
-    switch (currentSlide.template) {
-      case 'title':
-        return (
-          <div className="present-template-title">
-            <h1 style={{ color: currentSlide.textColor }}>{currentSlide.title}</h1>
-          </div>
-        );
-
-      case 'title-content':
-        return (
-          <div className="present-template-title-content">
-            <h2 style={{ color: currentSlide.textColor }}>{currentSlide.title}</h2>
-            <div className="present-content" style={{ color: currentSlide.textColor }}>
-              {currentSlide.content}
-            </div>
-          </div>
-        );
-
-      case 'two-column':
-        return (
-          <div className="present-template-two-column">
-            <h2 style={{ color: currentSlide.textColor }}>{currentSlide.title}</h2>
-            <div className="present-columns">
-              <div className="present-content" style={{ color: currentSlide.textColor }}>
-                {currentSlide.content}
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'image-text':
-        return (
-          <div className="present-template-image-text">
-            <div className="present-image-placeholder" style={{ borderColor: currentSlide.textColor }}>
-              <span style={{ color: currentSlide.textColor }}>📷</span>
-            </div>
-            <div className="present-text-section">
-              <h2 style={{ color: currentSlide.textColor }}>{currentSlide.title}</h2>
-              <div className="present-content" style={{ color: currentSlide.textColor }}>
-                {currentSlide.content}
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'blank':
-      default:
-        return (
-          <div className="present-template-blank">
-            <div className="present-content-full" style={{ color: currentSlide.textColor }}>
-              {currentSlide.content}
-            </div>
-          </div>
-        );
-    }
-  };
-
   return (
-    <div className="presentation">
+    <div className="presentation" ref={slideContainerRef}>
+      {/* Scaled Slide Container */}
+      <div
+        className="presentation-slide-container shadow-2xl"
+        style={{
+          width: SLIDE_WIDTH,
+          height: SLIDE_HEIGHT,
+          transform: `scale(${scale})`,
+          transformOrigin: 'center center',
+          backgroundColor: currentSlide.backgroundColor || '#ffffff',
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          marginTop: -SLIDE_HEIGHT / 2, // Centering trick combined with absolute
+          marginLeft: -SLIDE_WIDTH / 2,
+          overflow: 'hidden' // Clip content
+        }}
+      >
+        {/* Render Elements */}
+        {currentSlide.elements?.map((element: any) => (
+          <DraggableElement
+            key={element.id}
+            element={element}
+            isSelected={false}
+            readOnly={true}
+            zoomScale={scale}
+            onSelect={() => { }}
+            onChange={() => { }}
+          />
+        ))}
+      </div>
+
+      {/* Floating Controls */}
       <button className="presentation-exit" onClick={exitPresentation}>
         <X size={24} />
       </button>
-
-      <div className="presentation-slide" style={{ backgroundColor: currentSlide.backgroundColor }}>
-        {renderSlideContent()}
-      </div>
 
       <div className="presentation-controls">
         <button
@@ -168,4 +202,3 @@ export default function Presentation() {
     </div>
   );
 }
-

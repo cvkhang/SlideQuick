@@ -9,10 +9,14 @@ import {
 import { AppProvider, useApp } from "./src/context/AppContext";
 import Home from "./src/pages/Home";
 import Editor from "./src/pages/Editor";
+import Viewer from "./src/pages/Viewer";
 import Presentation from "./src/pages/Presentation";
-import Login from "./src/pages/Login";
-import Register from "./src/pages/Register";
-import "./App.css";
+import { Login } from "./src/pages/Login";
+import { Register } from "./src/pages/Register";
+import { ForgotPassword } from "./src/pages/ForgotPassword";
+import { ResetPassword } from "./src/pages/ResetPassword";
+import Trash from "./src/pages/Trash";
+
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
   const { currentUser, loading } = useApp();
@@ -56,13 +60,15 @@ function App() {
               </RequireAuth>
             }
           />
+          {/* Editor route - public access, Editor handles permissions internally */}
           <Route
             path="/editor/:projectId"
-            element={
-              <RequireAuth>
-                <Editor />
-              </RequireAuth>
-            }
+            element={<Editor />}
+          />
+          {/* Viewer route - public access for view-only shared projects */}
+          <Route
+            path="/viewer/:projectId"
+            element={<Viewer />}
           />
           <Route
             path="/present/:projectId"
@@ -74,6 +80,16 @@ function App() {
           />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route
+            path="/trash"
+            element={
+              <RequireAuth>
+                <Trash />
+              </RequireAuth>
+            }
+          />
         </Routes>
       </Router>
     </AppProvider>
