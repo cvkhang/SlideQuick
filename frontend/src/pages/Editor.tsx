@@ -67,7 +67,7 @@ export default function Editor() {
 
       async function checkAccess() {
         try {
-          const API_URL = 'http://localhost:3001/api';
+          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
           const response = await fetch(`${API_URL}/projects/public/${projectId}`);
 
           if (!response.ok) {
@@ -267,7 +267,7 @@ export default function Editor() {
 
     // Fetch current share mode from server
     try {
-      const API_URL = 'http://localhost:3001/api';
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
       const response = await fetch(`${API_URL}/projects/public/${currentProject.id}`);
       if (response.ok) {
         const data = await response.json();
@@ -296,7 +296,7 @@ export default function Editor() {
     }
 
     try {
-      const API_URL = 'http://localhost:3001/api';
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
       const response = await fetch(`${API_URL}/projects/${currentProject.id}/share`, {
         method: 'PUT',
