@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { Project, SlideElement } from "../../types";
+import { Project, SlideElement } from "../types";
 
 export async function exportToPDF(project: Project) {
   // Use 1920x1080 (Full HD) for high quality PDF

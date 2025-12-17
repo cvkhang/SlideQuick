@@ -5,7 +5,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Home, Play, Download, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
-import { Project } from '../../types';
+import { Project } from '../types';
 import SlideEditor from '../components/SlideEditor';
 import { exportToPDF } from '../utils/pdfExport';
 import {

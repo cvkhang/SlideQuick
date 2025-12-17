@@ -15,12 +15,76 @@ export interface Template {
   createdAt: string;
 }
 
+
 // Re-exporting these if they were supposed to be here,
 // allows AppContext to import from here without breaking if I overwrite/create index.ts
-// But since I don't know the exact shape, I might cause issues if I redefine them poorly.
-// I will just append or create new file.
-// Since existing file was NOT found, I am creating it.
-// I should probably also define Project/Slide/User if they are missing to prevent errors,
-// but I don't want to shadow real definitions if they exist elsewhere (e.g. implicitly).
-// I will assume for now I am just adding Template.
-// If the app breaks because I created index.ts which shadows something else, I'll revert.
+
+export interface ElementStyle {
+  fontSize?: number;
+  fontFamily?: string;
+  fontWeight?: string; // 'bold' | 'normal'
+  fontStyle?: string; // 'italic' | 'normal'
+  textDecoration?: string; // 'underline' | 'none'
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  alignItems?: string; // 'flex-start' | 'center' | 'flex-end' (vertical alignment)
+  color?: string;
+  backgroundColor?: string;
+  opacity?: number;
+  border?: string;
+  borderRadius?: string | number;
+  zIndex?: number;
+  lineHeight?: number;
+  shapeType?: 'rectangle' | 'circle' | 'triangle'; // Shape type for shape elements
+}
+
+export interface SlideElement {
+  id: string;
+  type: 'text' | 'image' | 'shape';
+  content: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation?: number;
+  style?: ElementStyle;
+  role?: 'title' | 'subtitle' | 'body' | 'body2' | 'image' | 'decoration' | 'number' | 'author';
+}
+
+export interface Slide {
+  id: string;
+  title: string;
+  content: string;
+  template: 'blank' | 'title' | 'title-content' | 'two-column' | 'image-text' | 'quote' | 'big-number';
+  backgroundColor: string;
+  textColor: string;
+  imageUrl?: string;
+  textAlign?: 'left' | 'center' | 'right';
+  contentFontSize?: 'small' | 'medium' | 'large';
+  elements?: SlideElement[];
+  savedContent?: Record<string, string>; // Dictionary of role -> content for persistent memory
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  lessonName?: string;
+  basicInfo?: string;
+  ownerName?: string;
+  slides: Slide[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AppState {
+  projects: Project[];
+  currentProject: Project | null;
+  currentSlideIndex: number;
+}
+
+export interface User {
+  id: string;
+  username: string;
+  email?: string | null;
+  createdAt: string | Date;
+}

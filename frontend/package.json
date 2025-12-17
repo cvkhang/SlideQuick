@@ -6,9 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview",
-    "server": "node server/server.cjs",
-    "dev:full": "concurrently \"npm run server\" \"npm run dev\""
+    "preview": "vite preview"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.1",

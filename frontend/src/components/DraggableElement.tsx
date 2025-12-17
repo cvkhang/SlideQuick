@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SlideElement } from '../../types';
+import { SlideElement } from '../types';
 
 interface DraggableElementProps {
   element: SlideElement;
