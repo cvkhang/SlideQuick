@@ -47,14 +47,14 @@ export interface SlideElement {
   height: number;
   rotation?: number;
   style?: ElementStyle;
-  role?: 'title' | 'subtitle' | 'body' | 'body2' | 'image' | 'decoration' | 'number' | 'author';
+  role?: 'title' | 'subtitle' | 'body' | 'body2' | 'image' | 'decoration' | 'number' | 'author' | 'subtitle1' | 'subtitle2' | 'body1' | 'caption' | 'col1' | 'col2' | 'col3' | 'item1' | 'item2' | 'item3' | 'item4';
 }
 
 export interface Slide {
   id: string;
   title: string;
   content: string;
-  template: 'blank' | 'title' | 'title-content' | 'two-column' | 'image-text' | 'quote' | 'big-number';
+  template: 'blank' | 'title' | 'title-content' | 'two-column' | 'image-text' | 'quote' | 'big-number' | 'comparison' | 'section-header' | 'content-caption' | 'three-column' | 'grid';
   backgroundColor: string;
   textColor: string;
   imageUrl?: string;
