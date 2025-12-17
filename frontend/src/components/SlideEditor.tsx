@@ -256,7 +256,7 @@ export default function SlideEditor({
     setSelectedElementId(newElement.id);
   };
 
-  const handleElementUpdate = (id: string, updates: Partial<SlideElement>) => {
+  const handleElementUpdate = useCallback((id: string, updates: Partial<SlideElement>) => {
     if (readOnly) return;
     const currentElements = slide.elements || [];
     let newSavedContent = slide.savedContent;
@@ -273,7 +273,7 @@ export default function SlideEditor({
     });
 
     updateSlide(projectId, slide.id, { elements: updatedElements, savedContent: newSavedContent });
-  };
+  }, [readOnly, slide.elements, slide.savedContent, projectId, slide.id, updateSlide]);
 
   const handleElementStyleUpdate = (id: string, styleUpdates: any) => {
     if (readOnly) return;

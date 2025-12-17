@@ -12,7 +12,7 @@ interface DraggableElementProps {
   onDragStateChange?: (isDragging: boolean, elementId: string) => void;
 }
 
-export const DraggableElement: React.FC<DraggableElementProps> = ({
+const _DraggableElement: React.FC<DraggableElementProps> = ({
   element,
   isSelected,
   readOnly,
@@ -341,3 +341,13 @@ export const DraggableElement: React.FC<DraggableElementProps> = ({
     </div>
   );
 };
+
+// Memoize specifically to prevent re-renders when other elements are being dragged (parent state changes)
+export const DraggableElement = React.memo(_DraggableElement, (prev, next) => {
+  return (
+    prev.element === next.element &&
+    prev.isSelected === next.isSelected &&
+    prev.readOnly === next.readOnly &&
+    prev.zoomScale === next.zoomScale
+  );
+});
