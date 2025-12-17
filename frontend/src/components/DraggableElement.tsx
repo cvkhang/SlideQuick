@@ -28,8 +28,11 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
   const [isEditing, setIsEditing] = useState(false);
 
   // Local offset for smooth dragging (CSS transform based)
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  // We use refs instead of state for dragOffset while dragging to avoid re-renders
+  // const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 }); // REMOVED
   const [resizeOffset, setResizeOffset] = useState({ x: 0, y: 0, w: 0, h: 0 });
+
+  const elementRef = useRef<HTMLDivElement>(null);
 
   // Refs for tracking values inside event listeners without re-binding
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -57,7 +60,7 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
 
     dragStartRef.current = { x: e.clientX, y: e.clientY };
     elementStartRef.current = { x: element.x, y: element.y, w: element.width, h: element.height };
-    setDragOffset({ x: 0, y: 0 });
+
     dragOffsetRef.current = { x: 0, y: 0 };
   };
 
@@ -108,7 +111,12 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
 
         // Update ref and state
         dragOffsetRef.current = { x: offsetX, y: offsetY };
-        setDragOffset({ x: offsetX, y: offsetY });
+
+        // Direct DOM manipulation for performance (no re-renders)
+        if (elementRef.current) {
+          elementRef.current.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+        }
+        // setDragOffset({ x: offsetX, y: offsetY }); // REMOVED
 
         // NOTE: We do NOT call onChange here anymore, to avoid flooding backend/global state.
         // Screen updates are handled via setDragOffset (local) and activeGuides (parent state via onDrag)
@@ -143,6 +151,11 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
         const finalX = elementStartRef.current.x + dragOffsetRef.current.x;
         const finalY = elementStartRef.current.y + dragOffsetRef.current.y;
 
+        // Reset transform before commit
+        if (elementRef.current) {
+          elementRef.current.style.transform = '';
+        }
+
         onChange(element.id, { x: finalX, y: finalY });
         onDragStateChange?.(false, element.id);
       }
@@ -162,7 +175,7 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
       setIsDragging(false);
       setIsResizing(false);
       setResizeHandle(null);
-      setDragOffset({ x: 0, y: 0 });
+      // setDragOffset({ x: 0, y: 0 }); // REMOVED
       setResizeOffset({ x: 0, y: 0, w: 0, h: 0 });
       dragOffsetRef.current = { x: 0, y: 0 };
       resizeOffsetRef.current = { x: 0, y: 0, w: 0, h: 0 };
@@ -187,8 +200,9 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
   ]);
 
   // Calculate visual position (element position + drag offset)
-  const visualX = element.x + (isDragging ? dragOffset.x : 0) + (isResizing ? resizeOffset.x : 0);
-  const visualY = element.y + (isDragging ? dragOffset.y : 0) + (isResizing ? resizeOffset.y : 0);
+  // dragOffset removed from render calc
+  const visualX = element.x + (isResizing ? resizeOffset.x : 0);
+  const visualY = element.y + (isResizing ? resizeOffset.y : 0);
   const visualW = element.width + (isResizing ? resizeOffset.w : 0);
   const visualH = element.height + (isResizing ? resizeOffset.h : 0);
 
@@ -207,6 +221,7 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
 
   return (
     <div
+      ref={elementRef}
       className="slide-element group"
       style={styles}
       onMouseDown={handleMouseDown}
