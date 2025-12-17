@@ -102,6 +102,8 @@ module.exports = {
   restoreProject,
   getProjectForGuest,
   updateShareMode,
+  trackProjectAccess,
+  getSharedProjects,
 };
 
 /**
@@ -165,5 +167,34 @@ async function updateShareMode(req, res) {
   } catch (error) {
     console.error('Error updating share mode:', error);
     res.status(500).json({ error: 'Failed to update share mode' });
+  }
+}
+
+/**
+ * Track user access to shared project
+ */
+async function trackProjectAccess(req, res) {
+  try {
+    const userId = req.user && req.user.id;
+    // projectService is synchronous, but good practice to await if it changes
+    await projectService.trackProjectAccess(userId, req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error tracking project access:', error);
+    res.status(500).json({ error: 'Failed to track access' });
+  }
+}
+
+/**
+ * Get projects shared with me
+ */
+async function getSharedProjects(req, res) {
+  try {
+    const userId = req.user && req.user.id;
+    const projects = projectService.getSharedProjects(userId);
+    res.json(projects);
+  } catch (error) {
+    console.error('Error getting shared projects:', error);
+    res.status(500).json({ error: 'Failed to get shared projects' });
   }
 }

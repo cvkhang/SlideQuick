@@ -54,8 +54,11 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
     if (isEditing && element.type === 'text') return;
 
     e.stopPropagation();
+    console.log('DraggableElement: onSelect', element.id);
     onSelect(element.id);
+    console.log('DraggableElement: setIsDragging(true)');
     setIsDragging(true);
+    console.log('DraggableElement: onDragStateChange(true)');
     onDragStateChange?.(true, element.id);
 
     dragStartRef.current = { x: e.clientX, y: e.clientY };
@@ -88,6 +91,7 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
     if (!isDragging && !isResizing) return;
 
     const handleMouseMove = (e: MouseEvent) => {
+      // console.log('DraggableElement: mousemove', { isDragging, isResizing });
       if (!dragStartRef.current || !elementStartRef.current) return;
 
       const dx = (e.clientX - dragStartRef.current.x) / zoomScale;
