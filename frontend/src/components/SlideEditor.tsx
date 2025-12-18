@@ -90,6 +90,34 @@ export default function SlideEditor({
     savedContentRef.current = slide.savedContent || {};
   }, [slide.id, slide.savedContent]);
 
+  // --- Sidebar Text Input with Debounce (prevents jitter on Vercel) ---
+  const SIDEBAR_TEXT_DEBOUNCE = 500;
+  const [sidebarText, setSidebarText] = useState("");
+  const sidebarTextTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isSidebarTypingRef = useRef(false);
+  // Store a ref to updateSlide to avoid stale closures in setTimeout
+  const updateSlideRef = useRef(updateSlide);
+  useEffect(() => {
+    updateSlideRef.current = updateSlide;
+  }, [updateSlide]);
+
+  // Sync sidebar text from selected element when selection changes or element content changes externally
+  useEffect(() => {
+    const selectedElement = slide.elements?.find(el => el.id === selectedElementId);
+    if (selectedElement && !isSidebarTypingRef.current) {
+      setSidebarText(selectedElement.content || "");
+    }
+  }, [selectedElementId, slide.elements]);
+
+  // Cleanup sidebar text timeout
+  useEffect(() => {
+    return () => {
+      if (sidebarTextTimeoutRef.current) {
+        clearTimeout(sidebarTextTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // --- Undo/Redo History (Simple approach) ---
   const MAX_HISTORY = 50;
   const [undoStack, setUndoStack] = useState<SlideElement[][]>([]);
@@ -287,6 +315,36 @@ export default function SlideEditor({
       handleElementUpdate(id, { style: { ...element.style, ...styleUpdates } });
     }
   };
+
+  // Debounced sidebar text change handler (defined after handleElementUpdate)
+  const handleSidebarTextChange = useCallback((newText: string) => {
+    setSidebarText(newText);
+    isSidebarTypingRef.current = true;
+
+    if (sidebarTextTimeoutRef.current) {
+      clearTimeout(sidebarTextTimeoutRef.current);
+    }
+
+    sidebarTextTimeoutRef.current = setTimeout(() => {
+      isSidebarTypingRef.current = false;
+      if (selectedElementId) {
+        handleElementUpdate(selectedElementId, { content: newText });
+      }
+    }, SIDEBAR_TEXT_DEBOUNCE);
+  }, [selectedElementId, handleElementUpdate, SIDEBAR_TEXT_DEBOUNCE]);
+
+  // Flush sidebar text on blur
+  const handleSidebarTextBlur = useCallback(() => {
+    if (sidebarTextTimeoutRef.current) {
+      clearTimeout(sidebarTextTimeoutRef.current);
+      sidebarTextTimeoutRef.current = null;
+    }
+    isSidebarTypingRef.current = false;
+    const selectedElement = slide.elements?.find(el => el.id === selectedElementId);
+    if (selectedElement && sidebarText !== selectedElement.content) {
+      handleElementUpdate(selectedElementId!, { content: sidebarText });
+    }
+  }, [selectedElementId, sidebarText, slide.elements, handleElementUpdate]);
 
   const handleDeleteElement = () => {
     if (readOnly || !selectedElementId) return;
@@ -543,7 +601,7 @@ export default function SlideEditor({
         <div ref={canvasContainerRef} className="flex-1 overflow-hidden relative bg-slate-100 flex items-center justify-center">
           {/* The Scaled Canvas */}
           <div
-            className="relative bg-white shadow-2xl overflow-hidden transition-transform duration-100 ease-linear origin-center"
+            className="relative bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] overflow-hidden transition-transform duration-100 ease-linear origin-center"
             style={{
               width: SLIDE_WIDTH,
               height: SLIDE_HEIGHT,
@@ -751,8 +809,9 @@ export default function SlideEditor({
                       <>
                         {/* Content */}
                         <textarea
-                          value={selectedElement.content}
-                          onChange={(e) => handleElementUpdate(selectedElement.id, { content: e.target.value })}
+                          value={sidebarText}
+                          onChange={(e) => handleSidebarTextChange(e.target.value)}
+                          onBlur={handleSidebarTextBlur}
                           className="w-full text-sm p-2 bg-slate-50 border border-slate-200 rounded-md focus:ring-1 focus:ring-primary-300 outline-none resize-none"
                           rows={2}
                           placeholder="テキストを入力..."
