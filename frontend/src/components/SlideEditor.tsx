@@ -93,7 +93,7 @@ export default function SlideEditor({
   // --- Sidebar Text Input with Debounce (prevents jitter on Vercel) ---
   const SIDEBAR_TEXT_DEBOUNCE = 500;
   const [sidebarText, setSidebarText] = useState("");
-  const sidebarTextTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sidebarTextTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSidebarTypingRef = useRef(false);
   // Store a ref to updateSlide to avoid stale closures in setTimeout
   const updateSlideRef = useRef(updateSlide);

@@ -32,7 +32,7 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
 
   // Local text state for smooth typing (prevents jitter on Vercel deploy)
   const [localText, setLocalText] = useState(element.content);
-  const textSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const textSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
 
   // Sync from parent when not actively typing
