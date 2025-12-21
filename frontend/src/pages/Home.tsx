@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Plus, Calendar, User, Presentation, Trash2 } from 'lucide-react';
+import { Plus, Calendar, User, Presentation, Trash2, Edit3 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { Layout } from '../components/ui/Layout';
 import TemplateLibrary from '../components/TemplateLibrary/TemplateLibrary';
-import { Template } from '../types';
+import { SlideThumbnail } from '../components/SlideThumbnail';
+import { Template, Project } from '../types';
 
 export default function Home() {
-  const { projects, sharedProjects, createProject, deleteProject, setCurrentProject, loading, fetchSharedProjects } = useApp();
+  const { projects, sharedProjects, createProject, deleteProject, updateProject, setCurrentProject, loading, fetchSharedProjects } = useApp();
   const [activeTab, setActiveTab] = useState<'my' | 'shared'>('my');
 
   // Fetch shared projects when tab changes
@@ -30,6 +31,11 @@ export default function Home() {
   const [lessonName, setLessonName] = useState('');
   const [basicInfo, setBasicInfo] = useState('');
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
+
+  // Renaming state
+  const [renamingProject, setRenamingProject] = useState<Project | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
   const navigate = useNavigate();
 
   const handleCreateProject = () => {
@@ -66,6 +72,23 @@ export default function Home() {
     e.stopPropagation();
     if (confirm('このプロジェクトをゴミ箱に移動してもよろしいですか？')) {
       await deleteProject(id);
+    }
+  };
+
+  const handleRenameClick = (e: React.MouseEvent, project: Project) => {
+    e.stopPropagation();
+    setRenamingProject(project);
+    setRenameValue(project.name);
+  };
+
+  const handleRenameSubmit = async () => {
+    if (renamingProject && renameValue.trim()) {
+      await updateProject({
+        ...renamingProject,
+        name: renameValue.trim()
+      });
+      setRenamingProject(null);
+      setRenameValue('');
     }
   };
 
@@ -141,18 +164,40 @@ export default function Home() {
               noPadding
             >
               <div className="h-40 bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden group-hover:scale-[1.02] transition-transform duration-500">
-                <div className="absolute inset-0 flex items-center justify-center text-slate-300">
-                  <Presentation className="w-12 h-12" />
-                </div>
-                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {/* Only show delete for my projects */}
+                {project.slides && project.slides.length > 0 ? (
+                  <div className="w-full h-full relative">
+                    <SlideThumbnail
+                      slide={project.slides[0]}
+                      scale={0.16}
+                      className="w-full h-full transform origin-top-left scale-[1]"
+                    />
+                    {/* Overlay to ensure text readability if needed, or just hover effect */}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-slate-300">
+                    <Presentation className="w-12 h-12" />
+                  </div>
+                )}
+                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                  {/* Only show actions for my projects */}
                   {activeTab === 'my' && (
-                    <button
-                      className="p-1.5 bg-white/90 backdrop-blur rounded-lg text-slate-600 hover:text-red-600 shadow-sm"
-                      onClick={(e) => handleDeleteProject(e, project.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <>
+                      <button
+                        className="p-1.5 bg-white/90 backdrop-blur rounded-lg text-slate-600 hover:text-primary-600 shadow-sm"
+                        onClick={(e) => handleRenameClick(e, project)}
+                        title="名前を変更"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        className="p-1.5 bg-white/90 backdrop-blur rounded-lg text-slate-600 hover:text-red-600 shadow-sm"
+                        onClick={(e) => handleDeleteProject(e, project.id)}
+                        title="削除"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
                   )}
                 </div>
                 <div className="absolute bottom-3 left-3">
@@ -189,6 +234,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* New Project Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 animate-slide-up max-h-[90vh] overflow-y-auto">
@@ -240,6 +286,35 @@ export default function Home() {
                   テンプレートを選択
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Modal */}
+      {renamingProject && (
+        <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setRenamingProject(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-slide-up" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-slate-900 mb-4">プロジェクト名を変更</h2>
+
+            <Input
+              label="プロジェクト名"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameSubmit();
+                if (e.key === 'Escape') setRenamingProject(null);
+              }}
+            />
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="ghost" onClick={() => setRenamingProject(null)}>
+                キャンセル
+              </Button>
+              <Button onClick={handleRenameSubmit} disabled={!renameValue.trim()}>
+                保存
+              </Button>
             </div>
           </div>
         </div>
