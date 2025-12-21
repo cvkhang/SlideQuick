@@ -45,7 +45,8 @@ export default function Home() {
       description,
       lessonName,
       basicInfo,
-      template.style // Pass the template style
+      template.style, // Pass the template style
+      template.id // Pass the template ID
     );
 
     // Reset form

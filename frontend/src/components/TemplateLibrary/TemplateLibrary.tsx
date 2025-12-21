@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { Template } from '../../types';
+import { SYSTEM_TEMPLATES } from '../../utils/projectTemplates';
+
 import TemplateCard from './TemplateCard';
 import TemplateSidebar from './TemplateSidebar';
 import TemplatePreviewModal from './TemplatePreviewModal';
@@ -41,13 +43,39 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
   const fetchTemplates = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}?is_standard=1`);
-      if (res.ok) {
-        const data = await res.json();
-        setTemplates(data);
-      }
+
+      // Convert system templates to match Template interface
+      // Convert system templates to match Template interface
+      const systemTemplates = SYSTEM_TEMPLATES.map(t => ({
+        id: t.id,
+        name: t.name,
+        thumbnailUrl: t.thumbnailUrl,
+        colors: t.colors,
+        fontFamily: t.fontFamily,
+        tags: t.tags.join(','),
+        isStandard: true,
+        style: t.style,
+        createdAt: new Date().toISOString()
+      }));
+
+      // Only use system templates for standard library to avoid duplicates from DB
+      setTemplates(systemTemplates);
+
     } catch (err) {
       console.error('Failed to load templates', err);
+      // Fallback to system templates
+      const systemTemplates = SYSTEM_TEMPLATES.map(t => ({
+        id: t.id,
+        name: t.name,
+        thumbnailUrl: t.thumbnailUrl,
+        colors: t.colors,
+        fontFamily: t.fontFamily,
+        tags: t.tags.join(','),
+        isStandard: true,
+        style: t.style,
+        createdAt: new Date().toISOString()
+      }));
+      setTemplates(systemTemplates);
     } finally {
       setLoading(false);
     }

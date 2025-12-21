@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { Project, Slide, User } from "../types";
 import { generateLayoutElements } from "../utils/layoutUtils";
+import { SYSTEM_TEMPLATES } from "../utils/projectTemplates";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
@@ -22,7 +23,8 @@ interface AppContextType {
     description?: string,
     lessonName?: string,
     basicInfo?: string,
-    initialStyle?: { backgroundColor: string; textColor: string; accentColor: string; fontFamily: string; }
+    initialStyle?: { backgroundColor: string; textColor: string; accentColor: string; fontFamily: string; },
+    templateId?: string
   ) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   setCurrentProject: (project: Project | null) => void;
@@ -232,56 +234,107 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     description?: string,
     lessonName?: string,
     basicInfo?: string,
-    initialStyle?: { backgroundColor: string; textColor: string; accentColor: string; fontFamily: string; }
+    initialStyle?: { backgroundColor: string; textColor: string; accentColor: string; fontFamily: string; },
+    templateId?: string
   ) => {
     try {
+
+      let initialSlides: Slide[] = [];
+      let projectStyle = initialStyle;
+
+      if (templateId) {
+        const systemTemplate = SYSTEM_TEMPLATES.find(t => t.id === templateId);
+        if (systemTemplate) {
+          if (!projectStyle) {
+            projectStyle = systemTemplate.style;
+          }
+
+          // Generate slides from template
+          initialSlides = systemTemplate.slides.map((slideDef) => {
+            const baseElements = generateLayoutElements(slideDef.template);
+
+            // Apply custom elements if defined, otherwise just update content
+            let elements = slideDef.customElements
+              ? slideDef.customElements(baseElements)
+              : baseElements;
+
+            // Update title/content placeholders if they match standard roles
+            elements = elements.map(el => {
+              const newStyle = { ...el.style, fontFamily: projectStyle?.fontFamily || 'Inter, sans-serif' };
+              const newEl = { ...el, style: newStyle };
+
+              if (el.role === 'title' && slideDef.title) {
+                return { ...newEl, content: slideDef.title };
+              }
+              if ((el.role === 'body' || el.role === 'subtitle') && slideDef.content) {
+                return { ...newEl, content: slideDef.content };
+              }
+              return newEl;
+            });
+
+            return {
+              id: crypto.randomUUID(),
+              title: slideDef.title,
+              content: slideDef.content,
+              template: slideDef.template,
+              backgroundColor: projectStyle?.backgroundColor || "#ffffff",
+              textColor: projectStyle?.textColor || "#000000",
+              elements: elements
+            };
+          });
+        }
+      }
+
+      // Fallback if no template or empty
+      if (initialSlides.length === 0) {
+        initialSlides = [{
+          id: crypto.randomUUID(),
+          title: "ようこそ",
+          content: "クリックしてスライドを編集",
+          template: "title",
+          backgroundColor: projectStyle?.backgroundColor || "#ffffff",
+          textColor: projectStyle?.textColor || "#000000",
+          elements: [
+            {
+              id: crypto.randomUUID(),
+              type: 'text',
+              role: 'title',
+              content: 'プレゼンテーションのタイトル',
+              x: 80, y: 180, width: 800, height: 120,
+              style: {
+                fontSize: 64,
+                fontWeight: 'bold',
+                textAlign: 'center',
+                alignItems: 'center',
+                color: projectStyle?.textColor || '#1e293b',
+                fontFamily: projectStyle?.fontFamily
+              }
+            },
+            {
+              id: crypto.randomUUID(),
+              type: 'text',
+              role: 'subtitle',
+              content: 'サブタイトルまたは作成者',
+              x: 180, y: 310, width: 600, height: 60,
+              style: {
+                fontSize: 28,
+                textAlign: 'center',
+                alignItems: 'center',
+                color: projectStyle?.accentColor || '#64748b',
+                fontFamily: projectStyle?.fontFamily
+              }
+            }
+          ]
+        }];
+      }
+
       const newProject: Project = {
         id: crypto.randomUUID(),
         name,
         description,
         lessonName,
         basicInfo,
-        slides: [
-          {
-            id: crypto.randomUUID(),
-            title: "ようこそ",
-            content: "クリックしてスライドを編集",
-            template: "title",
-            backgroundColor: initialStyle?.backgroundColor || "#ffffff",
-            textColor: initialStyle?.textColor || "#000000",
-            elements: [
-              {
-                id: crypto.randomUUID(),
-                type: 'text',
-                role: 'title',
-                content: 'プレゼンテーションのタイトル',
-                x: 80, y: 180, width: 800, height: 120,
-                style: {
-                  fontSize: 64,
-                  fontWeight: 'bold',
-                  textAlign: 'center',
-                  alignItems: 'center',
-                  color: initialStyle?.textColor || '#1e293b',
-                  fontFamily: initialStyle?.fontFamily
-                }
-              },
-              {
-                id: crypto.randomUUID(),
-                type: 'text',
-                role: 'subtitle',
-                content: 'サブタイトルまたは作成者',
-                x: 180, y: 310, width: 600, height: 60,
-                style: {
-                  fontSize: 28,
-                  textAlign: 'center',
-                  alignItems: 'center',
-                  color: initialStyle?.accentColor || '#64748b',
-                  fontFamily: initialStyle?.fontFamily
-                }
-              }
-            ]
-          },
-        ],
+        slides: initialSlides,
         createdAt: new Date(),
         updatedAt: new Date(),
       };

@@ -41,6 +41,35 @@ export const LAYOUT_SPECS: Record<string, Record<string, LayoutSpec>> = {
     subtitle: { type: 'text', x: 230, y: 400, w: 500, h: 80, defaultContent: '前年比増加', defaultStyle: { fontSize: 20, textAlign: 'center', alignItems: 'center', color: '#64748b' } },
   },
   'blank': {},
+  'comparison': {
+    title: { type: 'text', x: 50, y: 30, w: 860, h: 60, defaultContent: '比較', defaultStyle: { fontSize: 42, fontWeight: 'bold', textAlign: 'center', alignItems: 'center', color: '#1e293b' } },
+    subtitle1: { type: 'text', x: 50, y: 110, w: 410, h: 50, defaultContent: '項目 A', defaultStyle: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', alignItems: 'center', color: '#334155', backgroundColor: '#f1f5f9' } },
+    body1: { type: 'text', x: 50, y: 170, w: 410, h: 320, defaultContent: '• メリット 1\n• メリット 2\n• 特徴 A', defaultStyle: { fontSize: 20, textAlign: 'left', alignItems: 'flex-start', color: '#475569', lineHeight: 1.5 } },
+    subtitle2: { type: 'text', x: 500, y: 110, w: 410, h: 50, defaultContent: '項目 B', defaultStyle: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', alignItems: 'center', color: '#334155', backgroundColor: '#f1f5f9' } },
+    body2: { type: 'text', x: 500, y: 170, w: 410, h: 320, defaultContent: '• デメリット 1\n• デメリット 2\n• 特徴 B', defaultStyle: { fontSize: 20, textAlign: 'left', alignItems: 'flex-start', color: '#475569', lineHeight: 1.5 } },
+  },
+  'section-header': {
+    decoration: { type: 'shape', x: 0, y: 0, w: 300, h: 540, defaultContent: '', defaultStyle: { backgroundColor: '#3b82f6', shapeType: 'rectangle', opacity: 1 } },
+    title: { type: 'text', x: 350, y: 180, w: 560, h: 120, defaultContent: 'セクション 01', defaultStyle: { fontSize: 72, fontWeight: 'bold', textAlign: 'left', alignItems: 'center', color: '#1e293b' } },
+    subtitle: { type: 'text', x: 350, y: 300, w: 560, h: 80, defaultContent: '主要なトピックの概要', defaultStyle: { fontSize: 28, textAlign: 'left', alignItems: 'flex-start', color: '#64748b' } },
+  },
+  'content-caption': {
+    image: { type: 'image', x: 50, y: 50, w: 860, h: 380, defaultContent: 'https://images.unsplash.com/photo-1493612276216-ee3925520721?w=800&q=80', defaultStyle: {} },
+    caption: { type: 'text', x: 50, y: 450, w: 860, h: 60, defaultContent: '図1: データの可視化と分析結果の概要', defaultStyle: { fontSize: 18, fontStyle: 'italic', textAlign: 'center', alignItems: 'center', color: '#64748b' } },
+  },
+  'three-column': {
+    title: { type: 'text', x: 50, y: 30, w: 860, h: 60, defaultContent: '3つのポイント', defaultStyle: { fontSize: 36, fontWeight: 'bold', textAlign: 'center', alignItems: 'center', color: '#1e293b' } },
+    col1: { type: 'text', x: 40, y: 110, w: 280, h: 380, defaultContent: '### ステップ 1\n\n最初のステップについて説明します。', defaultStyle: { fontSize: 18, textAlign: 'left', alignItems: 'flex-start', color: '#475569' } },
+    col2: { type: 'text', x: 340, y: 110, w: 280, h: 380, defaultContent: '### ステップ 2\n\n次のステップの詳細です。', defaultStyle: { fontSize: 18, textAlign: 'left', alignItems: 'flex-start', color: '#475569' } },
+    col3: { type: 'text', x: 640, y: 110, w: 280, h: 380, defaultContent: '### ステップ 3\n\n最後のポイントです。', defaultStyle: { fontSize: 18, textAlign: 'left', alignItems: 'flex-start', color: '#475569' } },
+  },
+  'grid': {
+    title: { type: 'text', x: 50, y: 30, w: 860, h: 60, defaultContent: 'グリッドレイアウト', defaultStyle: { fontSize: 36, fontWeight: 'bold', textAlign: 'center', alignItems: 'center', color: '#1e293b' } },
+    item1: { type: 'text', x: 50, y: 110, w: 410, h: 190, defaultContent: '要素 1', defaultStyle: { fontSize: 24, textAlign: 'center', alignItems: 'center', color: '#1e293b', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px' } },
+    item2: { type: 'text', x: 500, y: 110, w: 410, h: 190, defaultContent: '要素 2', defaultStyle: { fontSize: 24, textAlign: 'center', alignItems: 'center', color: '#1e293b', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px' } },
+    item3: { type: 'text', x: 50, y: 320, w: 410, h: 190, defaultContent: '要素 3', defaultStyle: { fontSize: 24, textAlign: 'center', alignItems: 'center', color: '#1e293b', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px' } },
+    item4: { type: 'text', x: 500, y: 320, w: 410, h: 190, defaultContent: '要素 4', defaultStyle: { fontSize: 24, textAlign: 'center', alignItems: 'center', color: '#1e293b', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px' } },
+  },
 };
 
 export function generateLayoutElements(template: string): SlideElement[] {
