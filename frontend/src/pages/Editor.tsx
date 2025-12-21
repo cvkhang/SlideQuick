@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { Home, Plus, Trash2, Play, Download, ChevronLeft, ChevronRight, Share2, Copy, X, Lock, Eye, Edit3 } from 'lucide-react';
 import { Slide } from '../types';
 import SlideEditor from '../components/SlideEditor';
+import { SlideThumbnail } from '../components/SlideThumbnail';
 import { exportToPDF } from '../utils/pdfExport';
 import {
   connectToRoom,
@@ -26,7 +27,7 @@ export default function Editor() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { projects, currentProject, currentSlideIndex, setCurrentProject, setCurrentSlideIndex, addSlide, deleteSlide, duplicateSlide, currentUser, loading: authLoading, markProjectAccessed } = useApp();
+  const { projects, currentProject, currentSlideIndex, setCurrentProject, setCurrentSlideIndex, addSlide, deleteSlide, duplicateSlide, updateProject, currentUser, loading: authLoading, markProjectAccessed } = useApp();
   const [showTemplates, setShowTemplates] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; slideId: string } | null>(null);
 
@@ -415,6 +416,10 @@ export default function Editor() {
     { id: 'big-number', name: '大きな数字', description: '統計を強調' },
   ];
 
+  // Renaming state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState('');
+
   // Access denied screen
   if (accessDenied) {
     return (
@@ -428,6 +433,16 @@ export default function Editor() {
       </div>
     );
   }
+
+  const handleNameSave = async () => {
+    if (tempName.trim() && tempName !== currentProject.name) {
+      await updateProject({
+        ...currentProject,
+        name: tempName.trim()
+      });
+    }
+    setIsEditingName(false);
+  };
 
   // Loading state while checking access
   if (!currentProject) {
@@ -454,10 +469,34 @@ export default function Editor() {
             <Home className="w-5 h-5" />
           </button>
           <div className="flex flex-col">
-            <h1 className="text-lg font-bold font-display text-slate-800 flex items-center gap-2">
-              {currentProject.name}
-              {isReadOnly && <span className="text-xs bg-slate-200 px-2 py-0.5 rounded-full text-slate-600 font-normal">閲覧のみ</span>}
-            </h1>
+            {isEditingName ? (
+              <input
+                type="text"
+                value={tempName}
+                onChange={(e) => setTempName(e.target.value)}
+                onBlur={handleNameSave}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleNameSave();
+                  if (e.key === 'Escape') setIsEditingName(false);
+                }}
+                autoFocus
+                className="text-lg font-bold font-display text-slate-800 bg-white border border-primary-300 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-primary-500/50"
+              />
+            ) : (
+              <h1
+                className={`text-lg font-bold font-display text-slate-800 flex items-center gap-2 ${!isReadOnly ? 'cursor-pointer hover:bg-slate-100 rounded px-2 -ml-2 py-0.5 transition-colors group' : ''}`}
+                onClick={() => {
+                  if (!isReadOnly) {
+                    setTempName(currentProject.name);
+                    setIsEditingName(true);
+                  }
+                }}
+              >
+                {currentProject.name}
+                {!isReadOnly && <Edit3 className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                {isReadOnly && <span className="text-xs bg-slate-200 px-2 py-0.5 rounded-full text-slate-600 font-normal">閲覧のみ</span>}
+              </h1>
+            )}
             <span className="text-xs text-slate-500">たった今編集</span>
           </div>
         </div>
@@ -508,79 +547,9 @@ export default function Editor() {
                 <div className="absolute left-2 top-2 z-10 w-6 h-6 flex items-center justify-center bg-black/50 text-white text-xs font-bold rounded-full shadow-sm backdrop-blur-sm">
                   {index + 1}
                 </div>
-                {/* Mini Slide Preview */}
-                <div
-                  className="aspect-video w-full relative overflow-hidden"
-                  style={{ backgroundColor: slide.backgroundColor || '#ffffff' }}
-                >
-                  {/* Render actual elements scaled down */}
-                  {slide.elements?.map(el => {
-                    const scale = 0.24; // Thumbnail is ~24% of actual slide
-                    if (el.type === 'text') {
-                      return (
-                        <div
-                          key={el.id}
-                          className="absolute overflow-hidden whitespace-pre-wrap"
-                          style={{
-                            left: el.x * scale,
-                            top: el.y * scale,
-                            width: el.width * scale,
-                            height: el.height * scale,
-                            fontSize: (el.style?.fontSize || 20) * scale,
-                            fontWeight: el.style?.fontWeight,
-                            fontStyle: el.style?.fontStyle,
-                            textAlign: el.style?.textAlign,
-                            color: el.style?.color || '#000',
-                            fontFamily: el.style?.fontFamily,
-                            lineHeight: 1.2,
-                          }}
-                        >
-                          {el.content}
-                        </div>
-                      );
-                    }
-                    if (el.type === 'image') {
-                      return (
-                        <img
-                          key={el.id}
-                          src={el.content}
-                          alt=""
-                          className="absolute object-cover"
-                          style={{
-                            left: el.x * scale,
-                            top: el.y * scale,
-                            width: el.width * scale,
-                            height: el.height * scale,
-                          }}
-                        />
-                      );
-                    }
-                    if (el.type === 'shape') {
-                      return (
-                        <div
-                          key={el.id}
-                          className="absolute"
-                          style={{
-                            left: el.x * scale,
-                            top: el.y * scale,
-                            width: el.width * scale,
-                            height: el.height * scale,
-                            backgroundColor: el.style?.backgroundColor || '#e2e8f0',
-                            borderRadius: el.style?.borderRadius,
-                          }}
-                        />
-                      );
-                    }
-                    return null;
-                  })}
-                  {/* Empty state */}
-                  {(!slide.elements || slide.elements.length === 0) && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-[8px] text-slate-300 uppercase tracking-wider">
-                        {slide.template === 'blank' ? '空白' : slide.template}
-                      </span>
-                    </div>
-                  )}
+                {/* Mini Slide Preview using SlideThumbnail */}
+                <div className="aspect-video w-full relative">
+                  <SlideThumbnail slide={slide} scale={0.24} className="w-full h-full" />
                 </div>
               </div>
             ))}
