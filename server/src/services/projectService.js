@@ -36,6 +36,7 @@ function getAllProjects(ownerId, deletedOnly = false) {
       description: project.description,
       lessonName: project.lesson_name,
       basicInfo: project.basic_info,
+      shareMode: project.share_mode,
       slides: slides.map(mapSlideFromDb),
     };
   });
@@ -69,10 +70,10 @@ function getProjectById(id, ownerId) {
     ownerName: project.owner_name,
     createdAt: project.created_at,
     updatedAt: project.updated_at,
-    updatedAt: project.updated_at,
     description: project.description,
     lessonName: project.lesson_name,
     basicInfo: project.basic_info,
+    shareMode: project.share_mode || 'private',
     slides: slides.map(mapSlideFromDb),
   };
 }

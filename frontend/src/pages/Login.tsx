@@ -82,10 +82,10 @@ export const Login: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <Input
-              label="ユーザー名"
+              label="ユーザー名 または メールアドレス"
               name="username"
               type="text"
-              placeholder="ユーザー名を入力"
+              placeholder="ユーザー名 または メールアドレスを入力"
               value={formData.username}
               onChange={handleChange}
               leftIcon={<Mail className="w-5 h-5" />}
