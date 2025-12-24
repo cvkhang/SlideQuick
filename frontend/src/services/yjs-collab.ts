@@ -576,6 +576,7 @@ export function updateProjectInRoom(roomName: string, project: Project): void {
 export interface ChatMessage {
   id: string;
   sender: string;
+  senderId?: string; // Add sender ID for notification tracking
   text: string;
   timestamp: number;
 }
@@ -595,6 +596,9 @@ export function sendChatMessage(roomName: string, message: Omit<ChatMessage, 'id
 
     yMessage.set('id', crypto.randomUUID());
     yMessage.set('sender', message.sender);
+    if (message.senderId) {
+      yMessage.set('senderId', message.senderId);
+    }
     yMessage.set('text', message.text);
     yMessage.set('timestamp', message.timestamp);
 

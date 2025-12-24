@@ -131,4 +131,19 @@ module.exports = {
   deleteSession,
   cleanupExpiredSessions,
   sessionExists,
+  updateLastMessageAt,
 };
+
+/**
+ * Update project's last_message_at timestamp
+ */
+function updateLastMessageAt(projectId, timestamp) {
+  const stmt = db.prepare(`
+    UPDATE projects
+    SET last_message_at = ?
+    WHERE id = ?
+  `);
+
+  const result = stmt.run(new Date(timestamp).toISOString(), projectId);
+  return result.changes > 0;
+}

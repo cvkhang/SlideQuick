@@ -21,6 +21,8 @@ interface SlideEditorProps {
   messages?: Array<{ id: string; sender: string; text: string; timestamp: number }>;
   onSendMessage?: (text: string) => Promise<void>;
   username?: string;
+  hasUnreadMessages?: boolean; // Add unread status flag
+  onChatViewed?: () => void; // Callback when chat is viewed
   // Awareness props for showing other users' selections
   otherUsersSelections?: UserSelection[];
   onElementSelect?: (elementId: string | null) => void;
@@ -37,6 +39,8 @@ export default function SlideEditor({
   messages = [],
   onSendMessage,
   username,
+  hasUnreadMessages = false,
+  onChatViewed,
   otherUsersSelections = [],
   onElementSelect,
 }: SlideEditorProps) {
@@ -71,6 +75,13 @@ export default function SlideEditor({
       clearTimeout(t);
     };
   }, []);
+
+  // Call onChatViewed when switching to chat tab
+  useEffect(() => {
+    if (activeTab === 'chat' && onChatViewed) {
+      onChatViewed();
+    }
+  }, [activeTab, onChatViewed]);
 
   // Element Selection State
   const [selectedElementId, setSelectedElementIdState] = useState<string | null>(null);
@@ -743,6 +754,12 @@ export default function SlideEditor({
               onClick={() => setActiveTab('chat')}
               className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 transition-colors relative ${activeTab === 'chat' ? 'text-primary-600 bg-primary-50/50' : 'text-slate-500 hover:bg-slate-50'}`}
             >
+              {hasUnreadMessages && activeTab !== 'chat' && (
+                <span className="absolute top-2 right-6 flex h-2.5 w-2.5 z-10">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                </span>
+              )}
               <MessageSquare size={16} /> チャット
               {activeTab === 'chat' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600"></div>}
             </button>
