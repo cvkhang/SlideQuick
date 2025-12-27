@@ -423,6 +423,8 @@ export const DraggableElement = React.memo(_DraggableElement, (prev, next) => {
     prev.element === next.element &&
     prev.isSelected === next.isSelected &&
     prev.readOnly === next.readOnly &&
-    prev.zoomScale === next.zoomScale
+    prev.zoomScale === next.zoomScale &&
+    prev.onDrag === next.onDrag &&
+    prev.onDragStateChange === next.onDragStateChange
   );
 });
