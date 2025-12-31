@@ -49,6 +49,10 @@ export default function Editor() {
   const isOwner = useRef(true); // Default to owner when opening own project
   const [accessDenied, setAccessDenied] = useState<string | null>(null);
 
+  // Renaming state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState('');
+
   // Load project from local state first, or fetch from public API for guests
   useEffect(() => {
     // Wait for auth to be ready before checking access
@@ -416,9 +420,7 @@ export default function Editor() {
     { id: 'big-number', name: '大きな数字', description: '統計を強調' },
   ];
 
-  // Renaming state
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [tempName, setTempName] = useState('');
+
 
   // Access denied screen
   if (accessDenied) {
