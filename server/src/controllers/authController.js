@@ -1,6 +1,6 @@
 // src/controllers/authController.js
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const emailService = require('../services/emailService');
 const userService = require('../services/userService');
 const { JWT_SECRET } = require('../config/env');
 
@@ -18,6 +18,11 @@ async function register(req, res) {
 
     // Create user
     const user = userService.createUser({ username, email, password });
+
+    // Send welcome email if email provided
+    if (user.email) {
+      await emailService.sendWelcomeEmail(user.email, user.username);
+    }
 
     // Generate JWT token
     const token = jwt.sign(
@@ -73,39 +78,12 @@ async function forgotPassword(req, res) {
 
     const resetLink = `http://localhost:5173/reset-password?token=${token}`;
 
+    // Send reset email
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      try {
-        const transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS,
-          },
-        });
-
-        await transporter.sendMail({
-          from: '"SlideQuick" <noreply@slidequick.com>',
-          to: email,
-          subject: 'SlideQuick パスワードリセット',
-          text: `以下のリンクをクリックしてパスワードをリセットしてください:\n\n${resetLink}\n\nこのリンクは1時間有効です。`,
-          html: `<p>以下のリンクをクリックしてパスワードをリセットしてください:</p><p><a href="${resetLink}">${resetLink}</a></p><p>このリンクは1時間有効です。</p>`,
-        });
-        console.log(`[Forgot Password] Email sent to ${email}`);
-      } catch (mailError) {
-        console.error('[Forgot Password] Failed to send email:', mailError);
-        // Fallback to logging the link if email fails
-        console.log('--- FALLBACK RESET LINK ---');
-        console.log(resetLink);
-        console.log('---------------------------');
-      }
+      await emailService.sendResetPasswordEmail(email, resetLink);
     } else {
-      // Mock sending
-      console.log('===========================================================');
-      console.log(`[MOCK EMAIL] To: ${email}`);
-      console.log(`Subject: SlideQuick パスワードリセット`);
-      console.log(`Reset Link: ${resetLink}`);
-      console.log('Use EMAIL_USER and EMAIL_PASS env vars to enable real sending.');
-      console.log('===========================================================');
+      // Mock sending via service (if needed, or service handles it internally)
+      await emailService.sendResetPasswordEmail(email, resetLink);
     }
 
     res.json({ message: 'メールアドレスが存在する場合、リセット手順を送信しました。' });
