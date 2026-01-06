@@ -38,7 +38,7 @@ interface AppContextType {
   deleteSlide: (projectId: string, slideId: string) => Promise<void>;
   duplicateSlide: (projectId: string, slideId: string) => Promise<void>;
   setCurrentSlideIndex: (index: number) => void;
-  refreshProjects: () => Promise<void>;
+  refreshProjects: (overrideToken?: string, silent?: boolean) => Promise<void>;
   fetchSharedProjects: () => Promise<void>;
   markProjectAccessed: (projectId: string) => Promise<void>;
   // auth

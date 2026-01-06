@@ -82,9 +82,9 @@ function createUser(userData) {
 function verifyUser(username, password) {
   const row = db
     .prepare(
-      'SELECT id, username, email, password_hash, salt, created_at FROM users WHERE username = ?'
+      'SELECT id, username, email, password_hash, salt, created_at FROM users WHERE username = ? OR email = ?'
     )
-    .get(username);
+    .get(username, username);
 
   if (!row) return null;
 

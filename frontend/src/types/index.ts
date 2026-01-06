@@ -74,6 +74,7 @@ export interface Project {
   slides: Slide[];
   createdAt: Date;
   updatedAt: Date;
+  shareMode?: 'private' | 'view' | 'edit';
 }
 
 export interface AppState {
