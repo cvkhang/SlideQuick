@@ -71,6 +71,7 @@ export async function exportToPDF(project: Project) {
           if (el.style.textDecoration) textContent.style.textDecoration = el.style.textDecoration;
           textContent.style.color = el.style.color || "#000000";
           if (el.style.fontFamily) textContent.style.fontFamily = el.style.fontFamily;
+          textContent.style.marginTop = "-50px"; // Negative margin to push text higher (scaled)
 
           // Flex alignment for text (vertical)
           textContent.style.display = "flex";
