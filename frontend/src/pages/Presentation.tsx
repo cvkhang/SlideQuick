@@ -20,6 +20,9 @@ export default function Presentation() {
   const [error, setError] = useState<string | null>(null);
   const slideContainerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showHud, setShowHud] = useState(true);
+  const hideHudTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const proj = projects.find(p => p.id === projectId) || sharedProjects.find(p => p.id === projectId);
@@ -91,6 +94,63 @@ export default function Presentation() {
 
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // F11 key detection for fullscreen toggle
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F11') {
+        // Toggle fullscreen mode when F11 is pressed
+        setIsFullscreen(prev => {
+          const newState = !prev;
+          if (newState) {
+            // Entering fullscreen - auto-hide HUD after delay
+            setShowHud(true);
+            if (hideHudTimeoutRef.current) {
+              clearTimeout(hideHudTimeoutRef.current);
+            }
+            hideHudTimeoutRef.current = setTimeout(() => {
+              setShowHud(false);
+            }, 500);
+          } else {
+            // Exiting fullscreen - show HUD
+            setShowHud(true);
+            if (hideHudTimeoutRef.current) {
+              clearTimeout(hideHudTimeoutRef.current);
+            }
+          }
+          return newState;
+        });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (hideHudTimeoutRef.current) {
+        clearTimeout(hideHudTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Mouse movement effect for showing HUD in fullscreen
+  useEffect(() => {
+    if (!isFullscreen) return;
+
+    const handleMouseMove = () => {
+      setShowHud(true);
+      if (hideHudTimeoutRef.current) {
+        clearTimeout(hideHudTimeoutRef.current);
+      }
+      hideHudTimeoutRef.current = setTimeout(() => {
+        setShowHud(false);
+      }, 500);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, [isFullscreen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -194,11 +254,14 @@ export default function Presentation() {
       </div>
 
       {/* Floating Controls */}
-      <button className="presentation-exit" onClick={exitPresentation}>
+      <button
+        className={`presentation-exit ${isFullscreen && !showHud ? 'hud-hidden' : ''}`}
+        onClick={exitPresentation}
+      >
         <X size={24} />
       </button>
 
-      <div className="presentation-controls">
+      <div className={`presentation-controls ${isFullscreen && !showHud ? 'hud-hidden' : ''}`}>
         <button
           onClick={prevSlide}
           disabled={currentIndex === 0}

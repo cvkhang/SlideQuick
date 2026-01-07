@@ -31,7 +31,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div className="flex items-center gap-8">
               <Link to="/" className="flex items-center gap-2">
                 <LayoutTemplate className="w-7 h-7 text-primary-600" />
-                <span className="text-xl font-bold font-display text-slate-900">SlideQuick</span>
+                <span className="text-xl font-bold font-display text-primary-600">スライドクイック</span>
               </Link>
 
               <div className="hidden md:flex gap-1">

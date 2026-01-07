@@ -10,7 +10,7 @@ export const exportToPPTX = async (project: Project) => {
   // Set Presentation Properties
   pptx.layout = "LAYOUT_16x9";
   pptx.title = project.name;
-  pptx.author = project.ownerName || "SlideQuick User";
+  pptx.author = project.ownerName || "スライドクイック User";
 
   // Process each slide
   project.slides.forEach((slide: Slide) => {

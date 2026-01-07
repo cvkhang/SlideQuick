@@ -100,3 +100,21 @@
   min-width: 100px;
   text-align: center;
 }
+
+/* Auto-hide HUD in fullscreen */
+.presentation-exit,
+.presentation-controls {
+  transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+.presentation-exit.hud-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-20px);
+}
+
+.presentation-controls.hud-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(20px);
+}
