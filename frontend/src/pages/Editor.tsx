@@ -682,6 +682,8 @@ export default function Editor() {
                   );
                 }
               }}
+              onSlideJump={(slideIndex: number) => setCurrentSlideIndex(slideIndex)}
+              totalSlides={currentProject.slides.length}
             />
           </div>
         </main>

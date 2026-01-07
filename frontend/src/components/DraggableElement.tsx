@@ -277,6 +277,7 @@ const _DraggableElement: React.FC<DraggableElementProps> = ({
     boxSizing: 'border-box',
     userSelect: isEditing ? 'text' : 'none',
     willChange: isDragging || isResizing ? 'left, top, width, height' : 'auto',
+    zIndex: element.style?.zIndex ?? 0,
   };
 
   return (

@@ -50,8 +50,8 @@ export const LAYOUT_SPECS: Record<string, Record<string, LayoutSpec>> = {
   },
   'section-header': {
     decoration: { type: 'shape', x: 0, y: 0, w: 300, h: 540, defaultContent: '', defaultStyle: { backgroundColor: '#3b82f6', shapeType: 'rectangle', opacity: 1 } },
-    title: { type: 'text', x: 350, y: 180, w: 560, h: 120, defaultContent: 'セクション 01', defaultStyle: { fontSize: 72, fontWeight: 'bold', textAlign: 'left', alignItems: 'center', color: '#1e293b' } },
-    subtitle: { type: 'text', x: 350, y: 300, w: 560, h: 80, defaultContent: '主要なトピックの概要', defaultStyle: { fontSize: 28, textAlign: 'left', alignItems: 'flex-start', color: '#64748b' } },
+    title: { type: 'text', x: 350, y: 200, w: 560, h: 90, defaultContent: 'セクション 01', defaultStyle: { fontSize: 56, fontWeight: 'bold', textAlign: 'left', alignItems: 'center', color: '#1e293b' } },
+    subtitle: { type: 'text', x: 350, y: 300, w: 560, h: 80, defaultContent: '主要なトピックの概要', defaultStyle: { fontSize: 24, textAlign: 'left', alignItems: 'flex-start', color: '#64748b' } },
   },
   'content-caption': {
     image: { type: 'image', x: 50, y: 50, w: 860, h: 380, defaultContent: 'https://images.unsplash.com/photo-1493612276216-ee3925520721?w=800&q=80', defaultStyle: {} },

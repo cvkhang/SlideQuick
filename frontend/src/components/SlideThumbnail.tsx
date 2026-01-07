@@ -17,7 +17,10 @@ export const SlideThumbnail: React.FC<SlideThumbnailProps> = ({
     return (
         <div
             className={`relative overflow-hidden bg-white ${className}`}
-            style={{ backgroundColor: slide.backgroundColor || '#ffffff' }}
+            style={{
+                backgroundColor: slide.backgroundColor || '#ffffff',
+                isolation: 'isolate', // Create new stacking context for z-index
+            }}
         >
             {/* Render actual elements scaled down */}
             {slide.elements?.map(el => {
@@ -25,23 +28,30 @@ export const SlideThumbnail: React.FC<SlideThumbnailProps> = ({
                     return (
                         <div
                             key={el.id}
-                            className="absolute overflow-hidden whitespace-pre-wrap"
+                            className="absolute overflow-hidden whitespace-pre-wrap flex"
                             style={{
                                 left: el.x * scale,
                                 top: el.y * scale,
                                 width: el.width * scale,
                                 height: el.height * scale,
+                                padding: 8 * scale, // Tailwind p-2 = 8px
                                 fontSize: (el.style?.fontSize || 20) * scale,
                                 fontWeight: el.style?.fontWeight,
                                 fontStyle: el.style?.fontStyle,
                                 textAlign: el.style?.textAlign,
+                                textDecoration: el.style?.textDecoration,
                                 color: el.style?.color || '#000',
                                 fontFamily: el.style?.fontFamily,
-                                lineHeight: 1.2,
+                                lineHeight: el.style?.lineHeight || 1.2,
                                 pointerEvents: 'none',
+                                zIndex: el.style?.zIndex ?? 0,
+                                alignItems: el.style?.alignItems || 'flex-start',
+                                justifyContent: el.style?.textAlign === 'center' ? 'center' : el.style?.textAlign === 'right' ? 'flex-end' : 'flex-start',
                             }}
                         >
-                            {el.content}
+                            <span style={{ width: '100%', textAlign: el.style?.textAlign }}>
+                                {el.content}
+                            </span>
                         </div>
                     );
                 }
@@ -58,6 +68,7 @@ export const SlideThumbnail: React.FC<SlideThumbnailProps> = ({
                                 width: el.width * scale,
                                 height: el.height * scale,
                                 pointerEvents: 'none',
+                                zIndex: el.style?.zIndex ?? 0,
                             }}
                         />
                     );
@@ -75,6 +86,7 @@ export const SlideThumbnail: React.FC<SlideThumbnailProps> = ({
                                 backgroundColor: el.style?.backgroundColor || '#e2e8f0',
                                 borderRadius: el.style?.borderRadius,
                                 pointerEvents: 'none',
+                                zIndex: el.style?.zIndex ?? 0,
                             }}
                         />
                     );

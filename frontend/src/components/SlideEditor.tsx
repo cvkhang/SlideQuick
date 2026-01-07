@@ -26,6 +26,9 @@ interface SlideEditorProps {
   // Awareness props for showing other users' selections
   otherUsersSelections?: UserSelection[];
   onElementSelect?: (elementId: string | null) => void;
+  // Slide navigation for chat tags
+  onSlideJump?: (slideIndex: number) => void;
+  totalSlides?: number;
 }
 
 // 16:9 Aspect Ratio Base Dimensions
@@ -43,6 +46,8 @@ export default function SlideEditor({
   onChatViewed,
   otherUsersSelections = [],
   onElementSelect,
+  onSlideJump,
+  totalSlides = 1,
 }: SlideEditorProps) {
   const { updateSlide } = useApp();
   const [activeTab, setActiveTab] = useState<'settings' | 'chat'>('settings');
@@ -50,6 +55,59 @@ export default function SlideEditor({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+
+  // --- Slide Autocomplete State ---
+  const [showSlideAutocomplete, setShowSlideAutocomplete] = useState(false);
+  const chatInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle chat input changes and detect @ for autocomplete
+  const handleChatInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setChatInput(value);
+
+    // Check if user is typing @ for slide tag
+    const cursorPos = e.target.selectionStart || 0;
+    const textBeforeCursor = value.substring(0, cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex !== -1) {
+      const textAfterAt = textBeforeCursor.substring(lastAtIndex + 1);
+      // Show autocomplete if @ is at the end or followed only by digits/empty
+      if (/^(\d*)$/.test(textAfterAt)) {
+        setShowSlideAutocomplete(true);
+      } else {
+        setShowSlideAutocomplete(false);
+      }
+    } else {
+      setShowSlideAutocomplete(false);
+    }
+  };
+
+  // Insert slide tag from autocomplete
+  const insertSlideTag = (slideNum: number) => {
+    if (!chatInputRef.current) return;
+
+    const cursorPos = chatInputRef.current.selectionStart || 0;
+    const textBeforeCursor = chatInput.substring(0, cursorPos);
+    const textAfterCursor = chatInput.substring(cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex !== -1) {
+      const newValue =
+        chatInput.substring(0, lastAtIndex) +
+        `@slide${slideNum} ` +
+        textAfterCursor;
+      setChatInput(newValue);
+      setShowSlideAutocomplete(false);
+
+      // Focus back to input
+      setTimeout(() => {
+        chatInputRef.current?.focus();
+        const newCursorPos = lastAtIndex + `@slide${slideNum} `.length;
+        chatInputRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+      }, 0);
+    }
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -370,6 +428,95 @@ export default function SlideEditor({
     if (readOnly) return;
     updateSlideDirect(projectId, slide.id, updates);
   };
+
+  // --- Layer Management ---
+  const handleBringForward = useCallback(() => {
+    if (readOnly || !selectedElementId) return;
+    const selectedElement = slide.elements?.find(el => el.id === selectedElementId);
+    if (!selectedElement) return;
+
+    const currentZIndex = selectedElement.style?.zIndex ?? 0;
+    handleElementStyleUpdate(selectedElementId, { zIndex: currentZIndex + 1 });
+  }, [readOnly, selectedElementId, slide.elements]);
+
+  const handleSendBackward = useCallback(() => {
+    if (readOnly || !selectedElementId) return;
+    const selectedElement = slide.elements?.find(el => el.id === selectedElementId);
+    if (!selectedElement) return;
+
+    const currentZIndex = selectedElement.style?.zIndex ?? 0;
+    handleElementStyleUpdate(selectedElementId, { zIndex: currentZIndex - 1 });
+  }, [readOnly, selectedElementId, slide.elements]);
+
+  // --- Layer Keyboard Shortcuts ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Bring Forward: Ctrl+]
+      if (e.ctrlKey && e.key === ']') {
+        e.preventDefault();
+        handleBringForward();
+      }
+      // Send Backward: Ctrl+[
+      if (e.ctrlKey && e.key === '[') {
+        e.preventDefault();
+        handleSendBackward();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleBringForward, handleSendBackward]);
+
+  // --- Render Chat Messages with Slide Tags ---
+  const renderMessageWithSlideTags = useCallback((text: string) => {
+    const pattern = /@slide(\d+)/g;
+    const parts: (string | JSX.Element)[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = pattern.exec(text)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+
+      // Add the slide tag as a clickable element
+      const slideNum = parseInt(match[1], 10);
+      const slideIndex = slideNum - 1; // Convert to 0-based index
+      const isValid = slideIndex >= 0 && slideIndex < totalSlides;
+
+      parts.push(
+        <span
+          key={match.index}
+          onClick={(e) => {
+            if (isValid && onSlideJump) {
+              e.stopPropagation();
+              onSlideJump(slideIndex);
+            }
+          }}
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold transition-all ${isValid
+            ? 'bg-primary-100 text-primary-700 hover:bg-primary-200 hover:shadow-sm cursor-pointer border border-primary-300'
+            : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+            }`}
+          title={isValid ? `スライド${slideNum}に移動` : '無効なスライド番号'}
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+          Slide {slideNum}
+        </span>
+      );
+
+      lastIndex = pattern.lastIndex;
+    }
+
+    // Add remaining text after last match
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : text;
+  }, [totalSlides, onSlideJump]);
 
   // --- Smart Guides (Canva-like) ---
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
@@ -1133,7 +1280,7 @@ export default function SlideEditor({
                           ? 'bg-primary-600 text-white rounded-br-none shadow-sm'
                           : 'bg-white text-slate-700 border border-slate-200 rounded-bl-none shadow-sm'
                           }`}>
-                          {msg.text}
+                          {renderMessageWithSlideTags(msg.text)}
                         </div>
                         <span className="text-[10px] text-slate-300 mt-1 mr-1">
                           {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1144,14 +1291,47 @@ export default function SlideEditor({
                 )}
                 <div ref={messagesEndRef} />
               </div>
-              <div className="p-3 bg-white border-t border-slate-200">
+              <div className="p-3 bg-white border-t border-slate-200 relative">
+                {/* Slide Autocomplete Dropdown */}
+                {showSlideAutocomplete && totalSlides > 0 && (
+                  <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-lg shadow-xl border border-slate-200 max-h-48 overflow-y-auto z-50">
+                    <div className="p-2 border-b border-slate-100 bg-slate-50">
+                      <p className="text-xs font-semibold text-slate-600">スライドを選択</p>
+                    </div>
+                    <div className="py-1">
+                      {Array.from({ length: totalSlides }, (_, i) => i + 1).map((slideNum) => (
+                        <button
+                          key={slideNum}
+                          onClick={() => insertSlideTag(slideNum)}
+                          className="w-full px-3 py-2 text-left hover:bg-primary-50 transition-colors flex items-center gap-2 text-sm"
+                        >
+                          <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                          <span className="font-medium text-slate-700">Slide {slideNum}</span>
+                          <span className="text-xs text-slate-400 ml-auto">@slide{slideNum}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <input
+                    ref={chatInputRef}
                     type="text"
                     value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder="メッセージを入力..."
+                    onChange={handleChatInputChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !showSlideAutocomplete) {
+                        handleSendMessage();
+                      } else if (e.key === 'Escape') {
+                        setShowSlideAutocomplete(false);
+                      }
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => setShowSlideAutocomplete(false), 200);
+                    }}
+                    placeholder="メッセージを入力... (@でスライドをタグ)"
                     className="flex-1 border border-slate-200 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-50 placeholder:text-slate-400"
                   />
                   <button
