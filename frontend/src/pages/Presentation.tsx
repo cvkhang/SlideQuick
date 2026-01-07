@@ -22,7 +22,7 @@ export default function Presentation() {
   const [scale, setScale] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showHud, setShowHud] = useState(true);
-  const hideHudTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hideHudTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const proj = projects.find(p => p.id === projectId) || sharedProjects.find(p => p.id === projectId);
