@@ -173,6 +173,31 @@ function saveDocToDatabase(docName) {
       const projectService = require('./projectService');
       projectService.updateProjectFromCollab(project);
     }
+
+    // 3. Sync Chat activity for notifications
+    const yChat = room.doc.getArray('chat');
+    if (yChat && yChat.length > 0) {
+      // Get the last message
+      const lastMessage = yChat.get(yChat.length - 1);
+      // yChat content can be Y.Map or plain object depending on how it was inserted, 
+      // but in our client code it's inserted as Y.Map
+      let timestamp;
+
+      if (lastMessage instanceof Y.Map) {
+        timestamp = lastMessage.get('timestamp');
+      } else if (lastMessage && lastMessage.timestamp) {
+        timestamp = lastMessage.timestamp;
+      }
+
+      // Check if project.id is available (it should be in extractProjectFromYDoc or we can get it from session)
+      // We can try to get projectId from the doc 'project' map
+      const yProject = room.doc.getMap('project');
+      const projectId = yProject.get('id');
+
+      if (projectId && timestamp) {
+        shareSessionService.updateLastMessageAt(projectId, timestamp);
+      }
+    }
   } catch (err) {
     console.error(`Failed to save Y.js state for ${docName}:`, err);
   }

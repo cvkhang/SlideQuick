@@ -75,6 +75,7 @@ export interface Project {
   createdAt: Date;
   updatedAt: Date;
   shareMode?: 'private' | 'view' | 'edit';
+  hasUnreadMessages?: boolean;
 }
 
 export interface AppState {

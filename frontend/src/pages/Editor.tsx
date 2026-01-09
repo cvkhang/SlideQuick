@@ -1,7 +1,7 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Home, Plus, Trash2, Play, Download, ChevronLeft, ChevronRight, Share2, Copy, X, Lock, Eye, Edit3 } from 'lucide-react';
+import { Home, Plus, Trash2, Play, Download, ChevronLeft, ChevronRight, Share2, Copy, X, Lock, Eye, Edit3, FileText, Presentation, ChevronDown } from 'lucide-react';
 import { Slide } from '../types';
 import SlideEditor from '../components/SlideEditor';
 import { SlideThumbnail } from '../components/SlideThumbnail';
@@ -53,6 +53,9 @@ export default function Editor() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState('');
 
+  // Track if user has viewed chat in this session
+  const [chatViewedInSession, setChatViewedInSession] = useState(false);
+
   // Load project from local state first, or fetch from public API for guests
   useEffect(() => {
     // Wait for auth to be ready before checking access
@@ -66,6 +69,9 @@ export default function Editor() {
       projectLoadedRef.current = true;
       isOwner.current = true;
       setAccessDenied(null);
+      if (currentUser) {
+        markProjectAccessed(project.id);
+      }
     } else if (projectId) {
       // Not in user's projects - check public access
       isOwner.current = false;
@@ -113,8 +119,8 @@ export default function Editor() {
           projectLoadedRef.current = true;
           setAccessDenied(null);
 
-          // Track access for "Shared with me" history
-          if (currentUser && data.ownerId !== currentUser.id && projectId) {
+          // Track access for "Shared with me" history and notifications
+          if (currentUser && projectId) {
             markProjectAccessed(projectId);
           }
 
@@ -261,6 +267,25 @@ export default function Editor() {
 
   // Current share mode state
   const [currentShareMode, setCurrentShareMode] = useState<'private' | 'view' | 'edit'>('private');
+
+  // Calculate hasUnreadMessages locally for real-time updates
+  const hasUnreadMessages = useMemo(() => {
+    if (!messages || messages.length === 0) return false;
+    if (chatViewedInSession) return false; // User has viewed chat in this session
+
+    // Check if the last message is from someone else
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage) return false;
+
+    // If we have senderId, use it
+    if ('senderId' in lastMessage && lastMessage.senderId) {
+      return lastMessage.senderId !== currentUser?.id;
+    }
+
+    // Fallback to username comparison
+    const myUsername = currentUser?.username || `ゲスト-${clientIdRef.current.slice(0, 4)}`;
+    return lastMessage.sender !== myUsername;
+  }, [messages, currentUser, chatViewedInSession]);
 
   // Get the appropriate share link based on mode
   function getShareLink(mode: 'private' | 'view' | 'edit'): string {
@@ -505,9 +530,47 @@ export default function Editor() {
 
         <div className="flex items-center gap-3">
           {!isReadOnly && (
-            <Button variant="ghost" size="sm" onClick={handleExport} className="hidden sm:flex">
-              <Download className="w-4 h-4 mr-2" /> PDFエクスポート
-            </Button>
+            <div className="relative group z-50">
+              <Button variant="ghost" size="sm" className="hidden sm:flex group-hover:bg-slate-100 transition-colors" onClick={() => { }}>
+                <Download className="w-4 h-4 mr-2" /> エクスポート <ChevronDown className="w-3 h-3 ml-1 opacity-50" />
+              </Button>
+              {/* Invisible padding bridge to prevent hover loss */}
+              <div className="absolute right-0 top-full pt-2 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-right group-hover:translate-y-0 translate-y-1">
+                <div className="bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden p-1 ring-1 ring-black/5">
+                  <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">形式を選択</div>
+
+                  <button
+                    onClick={() => handleExport()}
+                    className="w-full text-left px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-primary-600 rounded-lg flex items-center gap-3 transition-colors group/item"
+                  >
+                    <div className="p-2 bg-red-50 text-red-600 rounded-lg group-hover/item:bg-red-100 transition-colors">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-slate-900 group-hover/item:text-primary-700">PDF ドキュメント</div>
+                      <div className="text-xs text-slate-500">印刷や共有に最適</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      if (!currentProject) return;
+                      const { exportToPPTX } = await import('../utils/pptxExport');
+                      await exportToPPTX(currentProject);
+                    }}
+                    className="w-full text-left px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-primary-600 rounded-lg flex items-center gap-3 transition-colors group/item"
+                  >
+                    <div className="p-2 bg-orange-50 text-orange-600 rounded-lg group-hover/item:bg-orange-100 transition-colors">
+                      <Presentation className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-slate-900 group-hover/item:text-primary-700">PowerPoint</div>
+                      <div className="text-xs text-slate-500">編集可能なプレゼンテーション</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
           <Button variant="secondary" size="sm" onClick={handleOpenShareModal}>
             <Share2 className="w-4 h-4 mr-2" /> 共有
@@ -601,6 +664,13 @@ export default function Editor() {
               messages={messages}
               username={currentUser?.username || `ゲスト-${clientIdRef.current.slice(0, 4)}`}
               onSendMessage={handleSendMessage}
+              hasUnreadMessages={hasUnreadMessages}
+              onChatViewed={() => {
+                setChatViewedInSession(true);
+                if (projectId && currentUser) {
+                  markProjectAccessed(projectId);
+                }
+              }}
               otherUsersSelections={otherUsersAwareness}
               onElementSelect={(elementId: string | null) => {
                 if (roomIdRef.current && currentUser) {

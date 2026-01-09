@@ -113,6 +113,13 @@ function initializeDatabase() {
     if (!projectColumns.some(c => c.name === 'basic_info')) {
       db.exec("ALTER TABLE projects ADD COLUMN basic_info TEXT DEFAULT ''");
     }
+    // Add last_message_at for notifications
+    if (!projectColumns.some(c => c.name === 'last_message_at')) {
+      db.exec("ALTER TABLE projects ADD COLUMN last_message_at TEXT");
+    }
+    if (!projectColumns.some(c => c.name === 'last_message_sender_id')) {
+      db.exec("ALTER TABLE projects ADD COLUMN last_message_sender_id TEXT");
+    }
 
     // 3. Chat & Comments System
     // Create Chat Messages Table

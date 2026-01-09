@@ -350,9 +350,17 @@ export default function Home() {
 
                 <div className="p-5">
                   <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-semibold text-slate-900 group-hover:text-primary-600 transition-colors line-clamp-1">
-                      {project.name}
-                    </h3>
+                    <div className="flex-1 min-w-0 flex items-center gap-2 pr-2">
+                      <h3 className="font-semibold text-slate-900 group-hover:text-primary-600 transition-colors line-clamp-1">
+                        {project.name}
+                      </h3>
+                      {project.hasUnreadMessages && (
+                        <span className="flex-shrink-0 relative flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-4 text-xs text-slate-500 mt-4">

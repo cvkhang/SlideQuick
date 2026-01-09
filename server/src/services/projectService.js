@@ -11,13 +11,14 @@ function getAllProjects(ownerId, deletedOnly = false) {
   const deletedVal = deletedOnly ? 1 : 0;
   const projects = db
     .prepare(`
-      SELECT p.*, u.username as owner_name 
+      SELECT p.*, u.username as owner_name, sp.accessed_at as user_accessed_at
       FROM projects p
       LEFT JOIN users u ON p.owner_id = u.id
+      LEFT JOIN shared_projects sp ON p.id = sp.project_id AND sp.user_id = ?
       WHERE p.owner_id = ? AND p.is_deleted = ?
       ORDER BY p.updated_at DESC
     `)
-    .all(ownerId || '', deletedVal);
+    .all(ownerId, ownerId, deletedVal);
 
   return projects.map((project) => {
     const slides = db
@@ -37,6 +38,10 @@ function getAllProjects(ownerId, deletedOnly = false) {
       lessonName: project.lesson_name,
       basicInfo: project.basic_info,
       shareMode: project.share_mode,
+      lastMessageAt: project.last_message_at,
+      hasUnreadMessages: project.last_message_at &&
+        project.last_message_sender_id !== ownerId &&
+        (!project.user_accessed_at || new Date(project.last_message_at) > new Date(project.user_accessed_at)),
       slides: slides.map(mapSlideFromDb),
     };
   });
@@ -384,9 +389,9 @@ function updateShareMode(projectId, ownerId, shareMode) {
  * @param {string} projectId - Project ID
  */
 function trackProjectAccess(userId, projectId) {
-  // Don't track if user is the owner
-  const project = db.prepare('SELECT owner_id FROM projects WHERE id = ?').get(projectId);
-  if (project && project.owner_id === userId) return;
+  // Track analytics for everyone including owner
+  // const project = db.prepare('SELECT owner_id FROM projects WHERE id = ?').get(projectId);
+  // if (project && project.owner_id === userId) return;
 
   const stmt = db.prepare(`
     INSERT INTO shared_projects (user_id, project_id, accessed_at)
@@ -425,7 +430,11 @@ function getSharedProjects(userId) {
       createdAt: project.created_at,
       updatedAt: project.updated_at,
       accessedAt: project.shared_accessed_at,
-      isShared: true
+      isShared: true,
+      lastMessageAt: project.last_message_at,
+      hasUnreadMessages: project.last_message_at &&
+        project.last_message_sender_id !== userId &&
+        (!project.shared_accessed_at || new Date(project.last_message_at) > new Date(project.shared_accessed_at)),
     };
   });
 }
