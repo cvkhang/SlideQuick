@@ -49,11 +49,11 @@ export const SYSTEM_TEMPLATES: ProjectTemplateConfig[] = [
                 customElements: (els) => {
                     const newEls = [...els];
                     const col1 = newEls.find(e => e.role === 'col1');
-                    if (col1) col1.content = '### 01. 現状分析\n\n市場の課題と機会について';
+                    if (col1) col1.content = '01. 現状分析\n\n市場の課題と機会について';
                     const col2 = newEls.find(e => e.role === 'col2');
-                    if (col2) col2.content = '### 02. 戦略提案\n\n具体的な解決策とロードマップ';
+                    if (col2) col2.content = '02. 戦略提案\n\n具体的な解決策とロードマップ';
                     const col3 = newEls.find(e => e.role === 'col3');
-                    if (col3) col3.content = '### 03. 財務計画\n\n予算とROIの予測';
+                    if (col3) col3.content = '03. 財務計画\n\n予算とROIの予測';
                     return newEls;
                 }
             },
