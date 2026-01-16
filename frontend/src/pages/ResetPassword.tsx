@@ -67,7 +67,7 @@ export const ResetPassword: React.FC = () => {
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-12">
             <LayoutTemplate className="w-8 h-8" />
-            <span className="text-2xl font-bold font-display">SlideQuick</span>
+            <span className="text-2xl font-bold font-display">スライドクイック</span>
           </div>
           <h1 className="text-5xl font-bold font-display leading-tight mb-6">
             アカウントを保護
@@ -78,7 +78,7 @@ export const ResetPassword: React.FC = () => {
         </div>
 
         <div className="relative z-10 flex gap-4 text-sm text-primary-100/60">
-          <span>© 2024 SlideQuick</span>
+          <span>© 2024 スライドクイック</span>
           <span>プライバシーポリシー</span>
           <span>利用規約</span>
         </div>

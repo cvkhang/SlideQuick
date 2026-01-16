@@ -63,7 +63,7 @@ export const Register: React.FC = () => {
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-12">
             <LayoutTemplate className="w-8 h-8 text-primary-400" />
-            <span className="text-2xl font-bold font-display">SlideQuick</span>
+            <span className="text-2xl font-bold font-display">スライドクイック</span>
           </div>
           <h1 className="text-5xl font-bold font-display leading-tight mb-6">
             スマートなプレゼンテーションの<br />

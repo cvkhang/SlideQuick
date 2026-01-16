@@ -264,7 +264,7 @@ export default function Home() {
             </h3>
             <p className="text-slate-500 max-w-sm mx-auto mt-2 mb-6">
               {activeTab === 'my'
-                ? 'SlideQuickを始めるには、最初のプレゼンテーションを作成してください。'
+                ? 'スライドクイックを始めるには、最初のプレゼンテーションを作成してください。'
                 : '他のユーザーから共有されたプロジェクトがここに表示されます。'}
             </p>
             {activeTab === 'my' && (
