@@ -1,244 +1,85 @@
 # SlideQuick
 
-SlideQuickは、講師や教師向けのスライド作成プロセスを簡素化する現代的なWebアプリケーションです。プリメイドテンプレートを使用して、美しいプレゼンテーションを素早く作成できます。
+A modern web-based presentation editor that enables educators and professionals to create, customize, and present slides effortlessly — no design skills required.
 
-## 機能
+> Built as a capstone project at Hanoi University of Science and Technology (HUST) — ITSS Japanese IT course.
 
-### ✨ 主な機能
-- **スライド編集**: 複数のテンプレートでスライドを作成・編集
-- **プロジェクト管理**: 複数のプロジェクトを作成、削除、整理
-- **複数スライド**: 各プロジェクトに無制限のスライドを追加可能
-- **フルスクリーンプレゼンテーション**: キーボード操作でスライドをフルスクリーン表示
-- **PDF エクスポート**: プロジェクト全体をPDF形式でエクスポート
-- **データベース保存**: SQLiteデータベースでデータを永続化
+## Key Features
 
-### 🎨 テンプレート
-- **空白**: ゼロから作成
-- **タイトル**: 中央揃えの大きなタイトルスライド
-- **タイトルと内容**: タイトルと本文
-- **2カラム**: 2列のレイアウト
-- **画像とテキスト**: 画像と説明文
+- **Drag-and-Drop Editor** — Freely position text, images, and shapes on a canvas
+- **Rich Text Formatting** — Bold, italic, underline with inline editing
+- **Template Library** — Pre-built layouts (Title, Two-Column, Image+Text, etc.)
+- **PDF & PPTX Export** — Pixel-accurate export for sharing and printing
+- **Fullscreen Presentation** — Present directly from the browser with keyboard navigation
+- **Real-Time Collaboration** — Multi-user editing powered by Yjs & WebSocket
+- **Persistent Storage** — SQLite-backed project and slide management
 
-### 🎯 カスタマイズ
-- 背景色のカスタマイズ
-- 文字色のカスタマイズ
-- テンプレートの切り替え
-- コンテンツの編集
+## Tech Stack
 
-## 必要要件
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
+| Backend | Express.js 5, Node.js |
+| Database | SQLite (better-sqlite3) |
+| Real-time | Yjs, y-websocket, WebSocket |
+| Export | jsPDF, html2canvas, pptxgenjs |
+| UI Icons | Lucide React |
 
-- Node.js（v18以上）
-- npm または yarn
+## Getting Started
 
-## インストールと起動
+### Prerequisites
 
-### 1. 依存関係のインストール
+- **Node.js** ≥ 18
+- **npm**
+
+### Installation
 
 ```bash
-# プロジェクトディレクトリに移動
-cd slidequick
+# Clone the repository
+git clone https://github.com/cvkhang/SlideQuick.git
+cd SlideQuick
 
-# フロントエンドの依存関係をインストール
+# Install frontend dependencies
+cd frontend
 npm install
 
-# バックエンドの依存関係をインストール
+# Install backend dependencies
+cd ../server
+npm install
+```
+
+### Running the App
+
+```bash
+# Terminal 1 — Start backend (http://localhost:3001)
 cd server
-npm install
-cd ..
-```
+npm run dev
 
-### 2. アプリケーションの起動
-
-**オプション A: フロントエンドとバックエンドを同時に起動（推奨）**
-
-```bash
-npm run dev:full
-```
-
-このコマンドは以下を同時に起動します:
-- バックエンドAPIサーバー: `http://localhost:3001`
-- フロントエンド開発サーバー: `http://localhost:5173`
-
-**オプション B: 個別に起動**
-
-ターミナル1 - バックエンドサーバーを起動:
-```bash
-npm run server
-```
-
-ターミナル2 - フロントエンドを起動:
-```bash
+# Terminal 2 — Start frontend (http://localhost:5173)
+cd frontend
 npm run dev
 ```
 
-### 3. アプリケーションにアクセス
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-ブラウザで以下のURLにアクセス:
-```
-http://localhost:5173
-```
-
-## アーキテクチャ
-
-### フロントエンド
-- **React 18** + TypeScript
-- **Vite** - 高速開発サーバー
-- **React Router** - ルーティング
-- **jsPDF + html2canvas** - PDF エクスポート
-
-### バックエンド
-- **Express.js** - RESTful API サーバー
-- **SQLite** (better-sqlite3) - データベース
-- **CORS** - クロスオリジン対応
-
-### API エンドポイント
-
-| メソッド | エンドポイント | 説明 |
-|---------|--------------|------|
-| GET | `/api/projects` | すべてのプロジェクトを取得 |
-| GET | `/api/projects/:id` | 特定のプロジェクトを取得 |
-| POST | `/api/projects` | 新しいプロジェクトを作成 |
-| PUT | `/api/projects/:id` | プロジェクトを更新 |
-| DELETE | `/api/projects/:id` | プロジェクトを削除 |
-
-## 使い方
-
-### プロジェクトの作成
-1. ホームページの「新規プロジェクト」をクリック
-2. プロジェクト名を入力
-3. 「作成」をクリック
-
-### スライドの編集
-1. プロジェクトカードをクリックしてエディタを開く
-2. テキストをクリックして編集
-3. サイドバーを使用してスライド間を移動
-4. 「+」ボタンをクリックして異なるテンプレートで新しいスライドを追加
-5. 右側のプロパティパネルで色をカスタマイズ
-
-### プレゼンテーション
-1. エディタで「プレゼン開始」ボタンをクリック
-2. 矢印キーまたは画面上のコントロールでナビゲート：
-   - **→** または **Space**: 次のスライド
-   - **←**: 前のスライド
-   - **Esc**: プレゼンテーション終了
-
-### PDFへのエクスポート
-1. エディタでプロジェクトを開く
-2. 「PDFエクスポート」をクリック
-3. PDFがデバイスにダウンロードされます
-
-### プロジェクト/スライドの削除
-- プロジェクトを削除: プロジェクトカードのゴミ箱アイコンをクリック
-- スライドを削除: エディタツールバーの「スライドを削除」ボタンを使用
-
-## 本番用ビルド
-
-```bash
-# フロントエンドをビルド
-npm run build
-
-# ビルドされたファイルは dist/ ディレクトリに生成されます
-# 本番環境ではこれらのファイルを静的ホスティングサービスにデプロイできます
-
-# バックエンドは server/ ディレクトリをそのままデプロイ
-```
-
-## プロジェクト構成
+## Project Structure
 
 ```
-slidequick/
-├── src/                    # フロントエンドソース
-│   ├── components/         # Reactコンポーネント
-│   │   └── SlideEditor.tsx
-│   ├── context/           # 状態管理用React Context
-│   │   └── AppContext.tsx
-│   ├── pages/             # ページコンポーネント
-│   │   ├── Home.tsx       # プロジェクト一覧
-│   │   ├── Editor.tsx     # スライドエディタ
-│   │   └── Presentation.tsx # フルスクリーンプレゼンテーション
-│   ├── styles/            # CSSファイル
-│   ├── utils/             # ユーティリティ関数
-│   │   └── pdfExport.ts
-│   ├── types.ts           # TypeScript型定義
-│   ├── App.tsx            # メインアプリコンポーネント
-│   └── main.tsx           # エントリーポイント
-├── server/                # バックエンドサーバー
-│   ├── server.js          # Express APIサーバー
-│   ├── database.js        # SQLite データベース操作
-│   ├── package.json       # サーバー依存関係
-│   └── slidequick.db      # SQLite データベースファイル（自動生成）
-├── public/
-├── index.html
-└── package.json
+SlideQuick/
+├── frontend/              # React + TypeScript SPA
+│   └── src/
+│       ├── components/    # SlideEditor, DraggableElement, TemplateLibrary
+│       ├── pages/         # Home, Editor, Presentation
+│       ├── context/       # Global state (AppContext)
+│       ├── services/      # API client layer
+│       ├── utils/         # PDF/PPTX export, layout utilities
+│       └── types/         # TypeScript interfaces
+├── server/                # Express.js REST API (MVC)
+│   └── src/
+│       ├── controllers/   # Route handlers
+│       ├── models/        # Database models
+│       ├── routes/        # API route definitions
+│       └── server.js      # Entry point
+└── README.md
 ```
 
-## データの永続化
-
-SlideQuickは**SQLiteデータベース**を使用してプロジェクトを保存します。データは`server/slidequick.db`ファイルに保存され、サーバーを再起動してもデータは保持されます。
-
-### データベーススキーマ
-
-**projects テーブル**
-- `id` (TEXT, PRIMARY KEY)
-- `name` (TEXT)
-- `created_at` (TEXT)
-- `updated_at` (TEXT)
-
-**slides テーブル**
-- `id` (TEXT, PRIMARY KEY)
-- `project_id` (TEXT, FOREIGN KEY)
-- `title` (TEXT)
-- `content` (TEXT)
-- `template` (TEXT)
-- `background_color` (TEXT)
-- `text_color` (TEXT)
-- `slide_order` (INTEGER)
-
-## トラブルシューティング
-
-### サーバーが起動しない
-- Node.jsがインストールされているか確認: `node --version`
-- 依存関係がインストールされているか確認: `npm install`
-- ポート3001が使用されていないか確認
-
-### データが保存されない
-- バックエンドサーバーが起動しているか確認
-- ブラウザのコンソールでエラーを確認
-- `server/slidequick.db`ファイルが作成されているか確認
-
-### フロントエンドがAPIに接続できない
-- `src/context/AppContext.tsx`のAPI_URLが正しいか確認
-- CORSエラーの場合は、サーバーが起動しているか確認
-
-## ブラウザの互換性
-
-- Chrome/Edge（推奨）
-- Firefox
-- Safari
-- Opera
-
-## 開発者向け情報
-
-### 開発モード
-```bash
-# ホットリロード付きで開発
-npm run dev:full
-```
-
-### APIのテスト
-```bash
-# サーバーが起動している状態で
-curl http://localhost:3001/api/projects
-```
-
-## ライセンス
-
-MITライセンス - 教育目的での使用を自由に行ってください。
-
-## 作成者
-
-日本の教師と講師のために設計されています。
-
----
-
-**SlideQuick** - 美しいプレゼンテーションを、もっと簡単に。 🚀
