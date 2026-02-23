@@ -4,6 +4,8 @@ A modern web-based presentation editor that enables educators and professionals 
 
 > Built as a capstone project at Hanoi University of Science and Technology (HUST) — ITSS Japanese IT course.
 
+**Live Demo:** [https://slide-quick.vercel.app/](https://slide-quick.vercel.app/)
+
 ## Key Features
 
 - **Drag-and-Drop Editor** — Freely position text, images, and shapes on a canvas
