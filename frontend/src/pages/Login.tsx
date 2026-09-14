@@ -85,7 +85,7 @@ export const Login: React.FC = () => {
               label="ユーザー名 または メールアドレス"
               name="username"
               type="text"
-              placeholder="ユーザー名 または メールアドレスを入力"
+              placeholder="khang"
               value={formData.username}
               onChange={handleChange}
               leftIcon={<Mail className="w-5 h-5" />}
@@ -97,7 +97,7 @@ export const Login: React.FC = () => {
                 label="パスワード"
                 name="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="123456"
                 value={formData.password}
                 onChange={handleChange}
                 leftIcon={<Lock className="w-5 h-5" />}
